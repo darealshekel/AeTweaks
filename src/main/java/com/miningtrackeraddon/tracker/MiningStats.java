@@ -11,6 +11,7 @@ import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import com.miningtrackeraddon.sync.MmmSyncManager;
 
 import net.minecraft.block.Block;
 import net.minecraft.registry.Registries;
@@ -98,6 +99,8 @@ public final class MiningStats
         {
             active.progress++;
         }
+
+        MmmSyncManager.onBlockMined();
     }
 
     public static void resetSession()

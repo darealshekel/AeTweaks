@@ -10,6 +10,7 @@ import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.config.Hotkeys;
 import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
+import com.miningtrackeraddon.mmm.ui.MmmScreen;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.ui.ProjectManagerScreen;
 
@@ -129,6 +130,12 @@ public class GuiConfigs extends GuiConfigsBase
                 return;
             }
 
+            if (this.tab == ConfigGuiTab.MMM)
+            {
+                MinecraftClient.getInstance().setScreen(new MmmScreen(this.parent));
+                return;
+            }
+
             GuiConfigs.tab = this.tab;
             this.parent.reCreateListWidget();
             this.parent.getListWidget().resetScrollbarPosition();
@@ -143,7 +150,8 @@ public class GuiConfigs extends GuiConfigsBase
         HOTKEYS("Hotkeys"),
         PROJECTS("Projects"),
         SUMMARY("Summary"),
-        HISTORY("History");
+        HISTORY("History"),
+        MMM("MMM");
 
         private final String displayName;
 

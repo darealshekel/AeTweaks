@@ -7,6 +7,7 @@ import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.tracker.GoalNotificationManager;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.sync.MmmSyncManager;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -48,6 +49,10 @@ public final class MiningHudRenderer
             lines.add("ETA blocks/hr: " + UiFormat.formatBlocksPerHour(MiningStats.getEstimatedBlocksPerHour()));
         }
         lines.add("Session Time: " + MiningStats.getSessionDurationClock());
+        if (FeatureToggle.TWEAK_MMM_SYNC.getBooleanValue())
+        {
+            lines.add(MmmSyncManager.getHudStatusLine());
+        }
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
             lines.add("ETA To Goal: " + MiningStats.getEstimatedTimeToDailyGoal());
@@ -104,6 +109,7 @@ public final class MiningHudRenderer
             lines.add("ETA blocks/hr: 12.3K blocks/hr");
         }
         lines.add("Session Time: 01:23:45");
+        if (FeatureToggle.TWEAK_MMM_SYNC.getBooleanValue()) lines.add("MMM Sync: Connected");
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("ETA To Goal: 1h 12m");
 
         int width = Math.max(getTextWidth(client, lines), 190);

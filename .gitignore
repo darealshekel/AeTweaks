@@ -1,0 +1,15 @@
+.gradle/
+build/
+run/
+mmm_gviz_live.txt
+mmm_live.csv
+mmm_sheet.csv
+mmm_sheet.html
+mmm_sheet_gviz.txt
+mmm_sync_sheet_live.html
+sheet_full.html
+upload-tree.json
+mmm-sync-backend/.gradle/
+mmm-sync-backend/build/
+mmm-sync-backend/config/service-account.json
+mmm-sync-backend/data/

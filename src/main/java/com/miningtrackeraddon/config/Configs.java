@@ -34,6 +34,12 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 10000, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 10000, "Mining HUD vertical position.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
+        public static final ConfigString MMM_SYNC_URL = new ConfigString("mmmSyncUrl", "", "Backend endpoint for secure MMM dig syncing.");
+        public static final ConfigString MMM_SYNC_API_KEY = new ConfigString("mmmSyncApiKey", "", "Optional API key sent to the MMM sync backend.");
+        public static final ConfigString MMM_BREAKDOWN_LABELS = new ConfigString(
+                "mmmBreakdownLabels",
+                "AitorLAB,AoLAB,Sigma SMP,FouLAB,Chronos,HenLAB,Neo Bismuth,RODLAB,OG Bismuth,Hypnos,IktLAB,Bullet,LukLAB,Aeternum,RobLAB,Epsilon,AkaLAB,MineWave,GkeLAB,Hermitcraft,AntLAB,MinLAB,SMP Technique,EndTech,Enigma,TecnicPhantoms SMP,TTLAB,E ndLAB",
+                "Comma separated MMM breakdown source labels in column order.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
                 DAILY_GOAL,
@@ -41,7 +47,10 @@ public class Configs implements IConfigHandler
                 SOUND_ALERT_THRESHOLD,
                 HUD_X,
                 HUD_Y,
-                HUD_SCALE
+                HUD_SCALE,
+                MMM_SYNC_URL,
+                MMM_SYNC_API_KEY,
+                MMM_BREAKDOWN_LABELS
         );
     }
 
@@ -142,6 +151,20 @@ public class Configs implements IConfigHandler
             }
             catch (NumberFormatException ignored)
             {
+            }
+        }
+        return values;
+    }
+
+    public static List<String> getMmmBreakdownLabels()
+    {
+        List<String> values = new ArrayList<>();
+        for (String part : Generic.MMM_BREAKDOWN_LABELS.getStringValue().split(","))
+        {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty())
+            {
+                values.add(trimmed);
             }
         }
         return values;

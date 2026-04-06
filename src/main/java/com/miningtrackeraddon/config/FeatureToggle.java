@@ -23,6 +23,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_FLAT_DIGGER("tweakFlatDigger", false, "", "Prevents mining blocks below your feet while enabled."),
     TWEAK_NOTIFICATIONS("tweakGoalNotifications", true, "", "Shows centered milestone notifications while mining."),
     TWEAK_SOUND_ALERTS("tweakGoalSoundAlerts", true, "", "Plays a level-up sound on configured goal thresholds."),
+    TWEAK_MMM_SYNC("tweakMmmSync", false, "", "Sends batched MMM dig updates to a configured backend endpoint."),
     TWEAK_SUMMARY_ON_EXIT("tweakSummaryOnExit", true, "", "Shows the session summary after leaving a world or server."),
     TWEAK_CARRY_GOAL_PROGRESS("tweakCarryGoalProgress", true, "", "Keeps daily goal progress between sessions."),
     TWEAK_HUD("tweakMiningHud", true, "", "Renders the mining HUD."),
