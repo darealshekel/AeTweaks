@@ -2,6 +2,7 @@ package com.miningtrackeraddon.mixin;
 
 import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.tweak.FlatDigger;
+import com.miningtrackeraddon.tweak.PerimeterWallDigHelper;
 import com.miningtrackeraddon.tracker.MiningStats;
 
 import net.minecraft.block.Block;
@@ -56,7 +57,7 @@ public class ClientPlayerInteractionManagerMixin
     @Inject(method = "attackBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
     private void miningtrackeraddon$blockAttackBelowFeet(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir)
     {
-        if (FlatDigger.shouldBlock(pos))
+        if (FlatDigger.shouldBlock(pos) || PerimeterWallDigHelper.isPositionDisallowed(pos))
         {
             cir.setReturnValue(false);
             cir.cancel();
@@ -66,9 +67,9 @@ public class ClientPlayerInteractionManagerMixin
     @Inject(method = "updateBlockBreakingProgress(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
     private void miningtrackeraddon$blockProgressBelowFeet(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir)
     {
-        if (FlatDigger.shouldBlock(pos))
+        if (FlatDigger.shouldBlock(pos) || PerimeterWallDigHelper.isPositionDisallowed(pos))
         {
-            cir.setReturnValue(false);
+            cir.setReturnValue(true);
             cir.cancel();
         }
     }

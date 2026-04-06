@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import com.miningtrackeraddon.gui.GuiConfigs;
 import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
+import com.miningtrackeraddon.tweak.PerimeterWallDigHelper;
 import com.miningtrackeraddon.tracker.MiningStats;
 
 import fi.dy.masa.malilib.config.IConfigBoolean;
@@ -37,6 +38,12 @@ public final class Callbacks
         {
             hotkey.getKeybind().setCallback(genericCallback);
         }
+
+        Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.setValueChangeCallback(config -> {
+            PerimeterWallDigHelper.setOutlineBlocks(config.getStrings());
+            Configs.saveToFile();
+        });
+        PerimeterWallDigHelper.setOutlineBlocks(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
     }
 
     private static class KeyCallbackHotkeysGeneric implements IHotkeyCallback

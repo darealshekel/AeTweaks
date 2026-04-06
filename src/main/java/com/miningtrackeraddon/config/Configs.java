@@ -18,13 +18,15 @@ import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
 import fi.dy.masa.malilib.config.options.ConfigString;
+import fi.dy.masa.malilib.config.options.ConfigStringList;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.JsonUtils;
 import com.miningtrackeraddon.Reference;
 
 public class Configs implements IConfigHandler
 {
-    private static final String CONFIG_FILE_NAME = Reference.MOD_ID + ".json";
+    private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
+    private static final String LEGACY_CONFIG_FILE_NAME = Reference.MOD_ID + ".json";
 
     public static class Generic
     {
@@ -34,12 +36,7 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 10000, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 10000, "Mining HUD vertical position.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
-        public static final ConfigString MMM_SYNC_URL = new ConfigString("mmmSyncUrl", "", "Backend endpoint for secure MMM dig syncing.");
-        public static final ConfigString MMM_SYNC_API_KEY = new ConfigString("mmmSyncApiKey", "", "Optional API key sent to the MMM sync backend.");
-        public static final ConfigString MMM_BREAKDOWN_LABELS = new ConfigString(
-                "mmmBreakdownLabels",
-                "AitorLAB,AoLAB,Sigma SMP,FouLAB,Chronos,HenLAB,Neo Bismuth,RODLAB,OG Bismuth,Hypnos,IktLAB,Bullet,LukLAB,Aeternum,RobLAB,Epsilon,AkaLAB,MineWave,GkeLAB,Hermitcraft,AntLAB,MinLAB,SMP Technique,EndTech,Enigma,TecnicPhantoms SMP,TTLAB,E ndLAB",
-                "Comma separated MMM breakdown source labels in column order.");
+        public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
                 DAILY_GOAL,
@@ -48,9 +45,7 @@ public class Configs implements IConfigHandler
                 HUD_X,
                 HUD_Y,
                 HUD_SCALE,
-                MMM_SYNC_URL,
-                MMM_SYNC_API_KEY,
-                MMM_BREAKDOWN_LABELS
+                PERIMETER_OUTLINE_BLOCKS_LIST
         );
     }
 
@@ -99,7 +94,9 @@ public class Configs implements IConfigHandler
 
     public static void loadFromFile()
     {
-        File configFile = new File(FileUtils.getConfigDirectory(), CONFIG_FILE_NAME);
+        migrateLegacyConfigIfNeeded();
+
+        File configFile = getPrimaryConfigFile();
         if (configFile.exists() && configFile.isFile() && configFile.canRead())
         {
             JsonElement element = JsonUtils.parseJsonFile(configFile);
@@ -118,6 +115,8 @@ public class Configs implements IConfigHandler
 
     public static void saveToFile()
     {
+        migrateLegacyConfigIfNeeded();
+
         File dir = FileUtils.getConfigDirectory();
         if ((dir.exists() && dir.isDirectory()) || dir.mkdirs())
         {
@@ -126,7 +125,7 @@ public class Configs implements IConfigHandler
             ConfigUtils.writeHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
             ConfigUtils.writeHotkeyToggleOptions(root, "TweakHotkeys", "TweakToggles", FeatureToggle.VALUES);
             writeCustomState(root);
-            JsonUtils.writeJsonToFile(root, new File(dir, CONFIG_FILE_NAME));
+            JsonUtils.writeJsonToFile(root, getPrimaryConfigFile());
         }
     }
 
@@ -151,20 +150,6 @@ public class Configs implements IConfigHandler
             }
             catch (NumberFormatException ignored)
             {
-            }
-        }
-        return values;
-    }
-
-    public static List<String> getMmmBreakdownLabels()
-    {
-        List<String> values = new ArrayList<>();
-        for (String part : Generic.MMM_BREAKDOWN_LABELS.getStringValue().split(","))
-        {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty())
-            {
-                values.add(trimmed);
             }
         }
         return values;
@@ -250,6 +235,34 @@ public class Configs implements IConfigHandler
         }
         state.add("projects", projects);
         root.add("State", state);
+    }
+
+    private static File getPrimaryConfigFile()
+    {
+        return new File(FileUtils.getConfigDirectory(), CONFIG_FILE_NAME);
+    }
+
+    private static File getLegacyConfigFile()
+    {
+        return new File(FileUtils.getConfigDirectory(), LEGACY_CONFIG_FILE_NAME);
+    }
+
+    private static void migrateLegacyConfigIfNeeded()
+    {
+        File primary = getPrimaryConfigFile();
+        File legacy = getLegacyConfigFile();
+        if (primary.exists() || !legacy.exists() || !legacy.isFile())
+        {
+            return;
+        }
+
+        try
+        {
+            java.nio.file.Files.copy(legacy.toPath(), primary.toPath());
+        }
+        catch (Exception ignored)
+        {
+        }
     }
 
     public static class ProjectEntry

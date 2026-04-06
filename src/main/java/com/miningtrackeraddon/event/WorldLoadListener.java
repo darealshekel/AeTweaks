@@ -1,11 +1,9 @@
 package com.miningtrackeraddon.event;
 
 import com.miningtrackeraddon.config.FeatureToggle;
-import com.miningtrackeraddon.mmm.MmmManager;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
-import com.miningtrackeraddon.sync.MmmSyncManager;
 import com.miningtrackeraddon.tracker.GoalNotificationManager;
 import com.miningtrackeraddon.tracker.MiningStats;
 
@@ -36,8 +34,6 @@ public class WorldLoadListener implements IWorldLoadListener
                 pendingSummaryName = WorldSessionContext.getCurrentWorldName();
             }
             GoalNotificationManager.clear();
-            MmmManager.onWorldLeave();
-            MmmSyncManager.onWorldLeave();
         }
     }
 
@@ -49,14 +45,10 @@ public class WorldLoadListener implements IWorldLoadListener
             WorldSessionContext.update(mc);
             SessionHistory.loadForWorld(WorldSessionContext.getCurrentWorldId());
             MiningStats.startWorldSession(WorldSessionContext.getCurrentWorldId());
-            MmmManager.onWorldJoin(mc);
-            MmmSyncManager.onWorldJoin(mc);
         }
         else if (worldAfter == null)
         {
             GoalNotificationManager.clear();
-            MmmManager.onWorldLeave();
-            MmmSyncManager.onWorldLeave();
         }
     }
 

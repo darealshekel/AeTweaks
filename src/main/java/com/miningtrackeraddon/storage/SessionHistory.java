@@ -16,7 +16,8 @@ import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SessionHistory
 {
-    private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve("miningtrackeraddon").resolve("sessions");
+    private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.miningtrackeraddon.Reference.STORAGE_ID).resolve("sessions");
+    private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.miningtrackeraddon.Reference.MOD_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static String currentWorldId = "default";
@@ -28,6 +29,7 @@ public final class SessionHistory
     public static void loadForWorld(String worldId)
     {
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        migrateLegacySessionsIfNeeded();
         HISTORY.clear();
         best = null;
 
@@ -62,6 +64,7 @@ public final class SessionHistory
 
     public static void save(SessionData session)
     {
+        migrateLegacySessionsIfNeeded();
         HISTORY.add(session);
         updateBest(session);
 
@@ -138,5 +141,22 @@ public final class SessionHistory
     private static Path getWorldDir()
     {
         return ROOT_DIR.resolve(currentWorldId);
+    }
+
+    private static void migrateLegacySessionsIfNeeded()
+    {
+        try
+        {
+            if (Files.exists(ROOT_DIR) || !Files.exists(LEGACY_ROOT_DIR))
+            {
+                return;
+            }
+
+            Files.createDirectories(ROOT_DIR.getParent());
+            Files.move(LEGACY_ROOT_DIR, ROOT_DIR);
+        }
+        catch (IOException ignored)
+        {
+        }
     }
 }

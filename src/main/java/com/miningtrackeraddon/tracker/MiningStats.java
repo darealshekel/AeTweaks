@@ -11,7 +11,6 @@ import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
-import com.miningtrackeraddon.sync.MmmSyncManager;
 
 import net.minecraft.block.Block;
 import net.minecraft.registry.Registries;
@@ -29,6 +28,7 @@ public final class MiningStats
 
     private static long streakStartMs;
     private static long lastMineMs;
+    private static long lastDailyResetCheckMs;
 
     private MiningStats()
     {
@@ -100,7 +100,6 @@ public final class MiningStats
             active.progress++;
         }
 
-        MmmSyncManager.onBlockMined();
     }
 
     public static void resetSession()
@@ -109,6 +108,16 @@ public final class MiningStats
         currentSession = new SessionData(System.currentTimeMillis());
         streakStartMs = 0L;
         lastMineMs = 0L;
+    }
+
+    public static void onClientTick()
+    {
+        long now = System.currentTimeMillis();
+        if (now - lastDailyResetCheckMs >= 1_000L)
+        {
+            lastDailyResetCheckMs = now;
+            resetDailyProgressIfNeeded();
+        }
     }
 
     public static int getBlocksPerHour()
@@ -226,6 +235,7 @@ public final class MiningStats
     public static void setDailyProgress(long value)
     {
         Configs.dailyProgress = Math.max(0L, value);
+        GoalNotificationManager.clear();
         Configs.saveToFile();
     }
 
@@ -235,6 +245,7 @@ public final class MiningStats
         if (activeProject != null)
         {
             activeProject.progress = Math.max(0L, value);
+            GoalNotificationManager.clear();
             Configs.saveToFile();
         }
     }
@@ -270,6 +281,7 @@ public final class MiningStats
         {
             Configs.dailyProgress = 0L;
             Configs.dailyGoalLastResetMs = now;
+            GoalNotificationManager.clear();
             Configs.saveToFile();
         }
     }
