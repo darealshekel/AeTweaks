@@ -23,7 +23,7 @@
   "depends": {
     "fabricloader": ">=0.16.7",
     "fabric-api": "*",
-    "minecraft": "1.21.4",
+    "minecraft": "${minecraft_dependency}",
     "malilib": ">=0.23.1",
     "tweakeroo": "*"
   }
