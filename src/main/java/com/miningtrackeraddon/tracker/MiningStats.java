@@ -3,6 +3,10 @@ package com.miningtrackeraddon.tracker;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.stream.Collectors;
 
 import com.miningtrackeraddon.config.Configs;
@@ -17,7 +21,6 @@ import net.minecraft.registry.Registries;
 
 public final class MiningStats
 {
-    private static final long ONE_DAY_MS = 86_400_000L;
     private static final long ONE_HOUR_MS = 3_600_000L;
     private static final long ONE_MINUTE_MS = 60_000L;
     private static final long STREAK_GAP_MS = 5_000L;
@@ -184,6 +187,27 @@ public final class MiningStats
         return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 
+    public static String getDailyResetCountdownClock()
+    {
+        resetDailyProgressIfNeeded();
+
+        if (FeatureToggle.TWEAK_DAILY_AUTO_RESET.getBooleanValue() == false)
+        {
+            return "Disabled";
+        }
+
+        ZoneId zoneId = ZoneId.systemDefault();
+        ZonedDateTime now = ZonedDateTime.now(zoneId);
+        ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(zoneId);
+        long remainingMs = Math.max(0L, nextMidnight.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
+
+        long totalSeconds = remainingMs / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
     public static long getSessionDurationMs()
     {
         return Math.max(0L, System.currentTimeMillis() - currentSession.startTimeMs);
@@ -270,6 +294,9 @@ public final class MiningStats
         }
 
         long now = System.currentTimeMillis();
+        ZoneId zoneId = ZoneId.systemDefault();
+        LocalDate today = LocalDate.now(zoneId);
+
         if (Configs.dailyGoalLastResetMs <= 0L)
         {
             Configs.dailyGoalLastResetMs = now;
@@ -277,7 +304,16 @@ public final class MiningStats
             return;
         }
 
-        if (now - Configs.dailyGoalLastResetMs >= ONE_DAY_MS)
+        LocalDate lastResetDate = Instant.ofEpochMilli(Configs.dailyGoalLastResetMs).atZone(zoneId).toLocalDate();
+
+        if (lastResetDate.isAfter(today))
+        {
+            Configs.dailyGoalLastResetMs = now;
+            Configs.saveToFile();
+            return;
+        }
+
+        if (lastResetDate.isBefore(today))
         {
             Configs.dailyProgress = 0L;
             Configs.dailyGoalLastResetMs = now;

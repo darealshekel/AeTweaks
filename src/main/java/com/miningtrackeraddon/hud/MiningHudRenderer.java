@@ -48,6 +48,10 @@ public final class MiningHudRenderer
             lines.add("ETA blocks/hr: " + UiFormat.formatBlocksPerHour(MiningStats.getEstimatedBlocksPerHour()));
         }
         lines.add("Session Time: " + MiningStats.getSessionDurationClock());
+        if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
+        {
+            lines.add("Daily Reset In: " + MiningStats.getDailyResetCountdownClock());
+        }
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
             lines.add("ETA To Goal: " + MiningStats.getEstimatedTimeToDailyGoal());
@@ -102,6 +106,7 @@ public final class MiningHudRenderer
             lines.add("ETA blocks/hr: 12.3K blocks/hr");
         }
         lines.add("Session Time: 01:23:45");
+        if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("Daily Reset In: 23:59:59");
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("ETA To Goal: 1h 12m");
 
         int width = Math.max(getTextWidth(client, lines), 190);

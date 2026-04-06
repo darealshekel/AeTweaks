@@ -2,6 +2,7 @@ package com.miningtrackeraddon.event;
 
 import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.hud.MiningHudRenderer;
+import com.miningtrackeraddon.tweak.BlockEspRenderer;
 
 import fi.dy.masa.malilib.interfaces.IRenderer;
 import net.minecraft.client.MinecraftClient;
@@ -29,5 +30,9 @@ public class RenderHandler implements IRenderer
     @Override
     public void onRenderWorldLast(Matrix4f posMatrix, Matrix4f projMatrix)
     {
+        if (FeatureToggle.TWEAK_BLOCK_ESP.getBooleanValue())
+        {
+            BlockEspRenderer.render(MinecraftClient.getInstance(), posMatrix, projMatrix);
+        }
     }
 }

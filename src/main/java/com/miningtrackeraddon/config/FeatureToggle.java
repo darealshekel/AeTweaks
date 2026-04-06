@@ -20,6 +20,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_MINING_TRACKER("tweakMiningTracker", true, "", "Master switch for the mining tracker addon."),
     TWEAK_DAILY_GOAL("tweakDailyGoal", true, "", "Shows and tracks the daily goal."),
     TWEAK_DAILY_AUTO_RESET("tweakDailyAutoReset", true, "", "Resets the daily goal progress every 24 hours."),
+    TWEAK_BLOCK_ESP("tweakBlockEsp", false, "", "Highlights the exact block currently under your cursor."),
     TWEAK_FLAT_DIGGER("tweakFlatDigger", false, "", "Prevents mining blocks below your feet while enabled."),
     TWEAK_PERIMETER_WALL_DIG_HELPER("tweakPerimeterWallDigHelper", false, "", "Prevents player from mining underneath the block types\nspecified in the Perimeter Outline Blocks list."),
     TWEAK_NOTIFICATIONS("tweakGoalNotifications", true, "", "Shows centered milestone notifications while mining."),

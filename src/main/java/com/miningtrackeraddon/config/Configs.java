@@ -14,10 +14,12 @@ import com.google.gson.JsonObject;
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
+import fi.dy.masa.malilib.config.IConfigOptionListEntry;
 import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
+import fi.dy.masa.malilib.config.options.ConfigColor;
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
-import fi.dy.masa.malilib.config.options.ConfigString;
+import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.config.options.ConfigStringList;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.JsonUtils;
@@ -31,11 +33,16 @@ public class Configs implements IConfigHandler
     public static class Generic
     {
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, Integer.MAX_VALUE, "Daily goal target.");
-        public static final ConfigString NOTIFICATION_THRESHOLDS = new ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
+        public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
         public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 10000, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 10000, "Mining HUD vertical position.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
+        public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
+        public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", "#55FF55", "Block ESP custom color. Used when the color mode is Single Color.");
+        public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
+        public static final ConfigInteger BLOCK_ESP_OPACITY = new ConfigInteger("blockEspOpacity", 35, 0, 100, "Block ESP opacity percentage.");
+        public static final ConfigDouble BLOCK_ESP_RAINBOW_SPEED = new ConfigDouble("blockEspRainbowSpeed", 1.0D, 0.1D, 10.0D, "Block ESP rainbow animation speed multiplier.");
         public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
@@ -45,6 +52,11 @@ public class Configs implements IConfigHandler
                 HUD_X,
                 HUD_Y,
                 HUD_SCALE,
+                BLOCK_ESP_COLOR_MODE,
+                BLOCK_ESP_HEX_COLOR,
+                BLOCK_ESP_RENDER_MODE,
+                BLOCK_ESP_OPACITY,
+                BLOCK_ESP_RAINBOW_SPEED,
                 PERIMETER_OUTLINE_BLOCKS_LIST
         );
     }
@@ -90,6 +102,8 @@ public class Configs implements IConfigHandler
             thresholds = List.of(25, 50, 75, 100);
         }
         Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
+        Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
+        Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
     }
 
     public static void loadFromFile()
@@ -176,6 +190,42 @@ public class Configs implements IConfigHandler
             activeProjectId = entry.id;
         }
         return entry;
+    }
+
+    public static boolean isBlockEspRainbow()
+    {
+        return Generic.BLOCK_ESP_COLOR_MODE.getOptionListValue() == BlockEspColorMode.RAINBOW;
+    }
+
+    public static boolean isBlockEspOutlineOnly()
+    {
+        return Generic.BLOCK_ESP_RENDER_MODE.getOptionListValue() == BlockEspRenderMode.OUTLINE_ONLY;
+    }
+
+    public static float getBlockEspOpacity()
+    {
+        return Generic.BLOCK_ESP_OPACITY.getIntegerValue() / 100.0F;
+    }
+
+    public static float getBlockEspRainbowSpeed()
+    {
+        return (float) Generic.BLOCK_ESP_RAINBOW_SPEED.getDoubleValue();
+    }
+
+    public static String normalizeBlockEspHexColor(String value)
+    {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.startsWith("#"))
+        {
+            normalized = normalized.substring(1);
+        }
+
+        if (normalized.matches("(?i)[0-9a-f]{6}([0-9a-f]{2})?"))
+        {
+            return "#" + normalized.toUpperCase();
+        }
+
+        return "#55FF55";
     }
 
     @Override
@@ -278,6 +328,100 @@ public class Configs implements IConfigHandler
             entry.name = name;
             entry.progress = progress;
             return entry;
+        }
+    }
+
+    public enum BlockEspColorMode implements IConfigOptionListEntry
+    {
+        RAINBOW("rainbow", "Rainbow"),
+        SINGLE_COLOR("single_color", "Single Color");
+
+        private final String value;
+        private final String displayName;
+
+        BlockEspColorMode(String value, String displayName)
+        {
+            this.value = value;
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String getStringValue()
+        {
+            return this.value;
+        }
+
+        @Override
+        public String getDisplayName()
+        {
+            return this.displayName;
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (BlockEspColorMode mode : values())
+            {
+                if (mode.value.equalsIgnoreCase(value) || mode.displayName.equalsIgnoreCase(value))
+                {
+                    return mode;
+                }
+            }
+
+            return RAINBOW;
+        }
+    }
+
+    public enum BlockEspRenderMode implements IConfigOptionListEntry
+    {
+        FULL_BLOCK("full_block", "Full Block"),
+        OUTLINE_ONLY("outline_only", "Outline Only");
+
+        private final String value;
+        private final String displayName;
+
+        BlockEspRenderMode(String value, String displayName)
+        {
+            this.value = value;
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String getStringValue()
+        {
+            return this.value;
+        }
+
+        @Override
+        public String getDisplayName()
+        {
+            return this.displayName;
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (BlockEspRenderMode mode : values())
+            {
+                if (mode.value.equalsIgnoreCase(value) || mode.displayName.equalsIgnoreCase(value))
+                {
+                    return mode;
+                }
+            }
+
+            return FULL_BLOCK;
         }
     }
 }

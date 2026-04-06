@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import com.miningtrackeraddon.gui.GuiConfigs;
 import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
+import com.miningtrackeraddon.tweak.BlockEspRenderer;
 import com.miningtrackeraddon.tweak.PerimeterWallDigHelper;
 import com.miningtrackeraddon.tracker.MiningStats;
 
@@ -44,6 +45,15 @@ public final class Callbacks
             Configs.saveToFile();
         });
         PerimeterWallDigHelper.setOutlineBlocks(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
+        Configs.Generic.BLOCK_ESP_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeBlockEspHexColor(config.getStringValue()));
+            Configs.saveToFile();
+        });
+        Configs.Generic.BLOCK_ESP_COLOR_MODE.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.BLOCK_ESP_RENDER_MODE.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.BLOCK_ESP_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.BLOCK_ESP_RAINBOW_SPEED.setValueChangeCallback(config -> Configs.saveToFile());
+        BlockEspRenderer.refreshConfig();
     }
 
     private static class KeyCallbackHotkeysGeneric implements IHotkeyCallback

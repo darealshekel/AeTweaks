@@ -33,6 +33,7 @@ public class InitHandler implements IInitializationHandler
 
         IRenderer renderer = new RenderHandler();
         RenderEventHandler.getInstance().registerGameOverlayRenderer(renderer);
+        RenderEventHandler.getInstance().registerWorldLastRenderer(renderer);
 
         IWorldLoadListener worldLoadListener = new WorldLoadListener();
         WorldLoadHandler.getInstance().registerWorldLoadPreHandler(worldLoadListener);
