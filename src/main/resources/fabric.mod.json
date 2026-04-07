@@ -5,7 +5,7 @@
   "name": "AeTweaks",
   "description": "A Tweakeroo-style companion addon that adds mining tracking, HUD stats, projects, goals, notifications, and session summaries.",
   "authors": [
-    "OpenAI Codex"
+    "Shekel"
   ],
   "license": "MIT",
   "environment": "client",

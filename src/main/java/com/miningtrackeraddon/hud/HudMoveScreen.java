@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.miningtrackeraddon.config.Configs;
+import com.miningtrackeraddon.config.Configs.HudAlignment;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -28,6 +29,7 @@ public class HudMoveScreen extends Screen
     @Override
     protected void init()
     {
+        ensureCursorVisible();
         int centerX = this.width / 2;
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(centerX - 54, 44, 20, 20).build());
@@ -38,6 +40,7 @@ public class HudMoveScreen extends Screen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
+        ensureCursorVisible();
         int centerX = this.width / 2;
         context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 16, UiFormat.YELLOW);
         context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Drag the HUD to move it."), centerX, 28, UiFormat.TEXT_MUTED);
@@ -60,8 +63,8 @@ public class HudMoveScreen extends Screen
         if (mouseX >= bounds[0] && mouseX <= bounds[2] && mouseY >= bounds[1] && mouseY <= bounds[3])
         {
             dragging = true;
-            dragOffsetX = (int) mouseX - Configs.Generic.HUD_X.getIntegerValue();
-            dragOffsetY = (int) mouseY - Configs.Generic.HUD_Y.getIntegerValue();
+            dragOffsetX = (int) mouseX - bounds[0];
+            dragOffsetY = (int) mouseY - bounds[1];
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
@@ -75,8 +78,25 @@ public class HudMoveScreen extends Screen
             int[] bounds = MiningHudRenderer.getBounds(MinecraftClient.getInstance());
             int width = bounds[2] - bounds[0];
             int height = bounds[3] - bounds[1];
-            Configs.Generic.HUD_X.setIntegerValue(Math.max(0, Math.min(this.width - width, (int) mouseX - dragOffsetX)));
-            Configs.Generic.HUD_Y.setIntegerValue(Math.max(0, Math.min(this.height - height, (int) mouseY - dragOffsetY)));
+            int actualX = Math.max(0, Math.min(this.width - width, (int) mouseX - dragOffsetX));
+            int actualY = Math.max(0, Math.min(this.height - height, (int) mouseY - dragOffsetY));
+            int maxX = Math.max(1, this.width - width);
+            int maxY = Math.max(1, this.height - height);
+            HudAlignment alignment = (HudAlignment) Configs.Generic.HUD_ALIGNMENT.getOptionListValue();
+
+            int storedX = switch (alignment)
+            {
+                case TOP_RIGHT, BOTTOM_RIGHT -> (int) Math.round((1.0D - (actualX / (double) maxX)) * 820.0D);
+                default -> (int) Math.round((actualX / (double) maxX) * 820.0D);
+            };
+            int storedY = switch (alignment)
+            {
+                case BOTTOM_LEFT, BOTTOM_RIGHT -> (int) Math.round((1.0D - (actualY / (double) maxY)) * 460.0D);
+                default -> (int) Math.round((actualY / (double) maxY) * 460.0D);
+            };
+
+            Configs.Generic.HUD_X.setIntegerValue(Math.max(0, Math.min(820, storedX)));
+            Configs.Generic.HUD_Y.setIntegerValue(Math.max(0, Math.min(460, storedY)));
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
@@ -116,6 +136,15 @@ public class HudMoveScreen extends Screen
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
+    }
+
+    private void ensureCursorVisible()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.mouse != null)
+        {
+            client.mouse.unlockCursor();
+        }
     }
 
     private void adjustScale(double delta)

@@ -6,9 +6,9 @@ import java.nio.file.Path;
 import com.miningtrackeraddon.gui.GuiConfigs;
 import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
+import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.tweak.BlockEspRenderer;
 import com.miningtrackeraddon.tweak.PerimeterWallDigHelper;
-import com.miningtrackeraddon.tracker.MiningStats;
 
 import fi.dy.masa.malilib.config.IConfigBoolean;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -84,10 +84,22 @@ public final class Callbacks
                 client.setScreen(new SessionHistoryScreen(client.currentScreen));
                 return true;
             }
-            if (key == Hotkeys.RESET_SESSION.getKeybind())
+            if (key == Hotkeys.PAUSE_SESSION.getKeybind())
             {
-                MiningStats.resetSession();
-                InfoUtils.printActionbarMessage("Mining session reset");
+                if (MiningStats.isSessionActive() == false)
+                {
+                    InfoUtils.printActionbarMessage("No active mining session");
+                    return true;
+                }
+
+                boolean paused = MiningStats.togglePauseSession();
+                InfoUtils.printActionbarMessage(paused ? "Mining session paused" : "Mining session resumed");
+                return true;
+            }
+            if (key == Hotkeys.TOGGLE_SESSION.getKeybind())
+            {
+                boolean active = MiningStats.toggleSession();
+                InfoUtils.printActionbarMessage(active ? "Mining session started" : "Mining session ended");
                 return true;
             }
             if (key == Hotkeys.EXPORT_HISTORY.getKeybind())

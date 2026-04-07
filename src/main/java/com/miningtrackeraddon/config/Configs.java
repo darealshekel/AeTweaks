@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.miningtrackeraddon.Reference;
 
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
@@ -23,7 +24,6 @@ import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.config.options.ConfigStringList;
 import fi.dy.masa.malilib.util.FileUtils;
 import fi.dy.masa.malilib.util.JsonUtils;
-import com.miningtrackeraddon.Reference;
 
 public class Configs implements IConfigHandler
 {
@@ -32,11 +32,12 @@ public class Configs implements IConfigHandler
 
     public static class Generic
     {
-        public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, Integer.MAX_VALUE, "Daily goal target.");
+        public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
         public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
-        public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 10000, "Mining HUD horizontal position.");
-        public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 10000, "Mining HUD vertical position.");
+        public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
+        public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
+        public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", "#55FF55", "Block ESP custom color. Used when the color mode is Single Color.");
@@ -51,6 +52,7 @@ public class Configs implements IConfigHandler
                 SOUND_ALERT_THRESHOLD,
                 HUD_X,
                 HUD_Y,
+                HUD_ALIGNMENT,
                 HUD_SCALE,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
@@ -226,6 +228,22 @@ public class Configs implements IConfigHandler
         }
 
         return "#55FF55";
+    }
+
+    public static String normalizeHexColor(String value, String fallback)
+    {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.startsWith("#"))
+        {
+            normalized = normalized.substring(1);
+        }
+
+        if (normalized.matches("(?i)[0-9a-f]{6}([0-9a-f]{2})?"))
+        {
+            return "#" + normalized.toUpperCase();
+        }
+
+        return fallback;
     }
 
     @Override
@@ -424,4 +442,54 @@ public class Configs implements IConfigHandler
             return FULL_BLOCK;
         }
     }
+
+    public enum HudAlignment implements IConfigOptionListEntry
+    {
+        TOP_LEFT("top_left", "Top Left"),
+        TOP_RIGHT("top_right", "Top Right"),
+        BOTTOM_LEFT("bottom_left", "Bottom Left"),
+        BOTTOM_RIGHT("bottom_right", "Bottom Right");
+
+        private final String value;
+        private final String displayName;
+
+        HudAlignment(String value, String displayName)
+        {
+            this.value = value;
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String getStringValue()
+        {
+            return this.value;
+        }
+
+        @Override
+        public String getDisplayName()
+        {
+            return this.displayName;
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (HudAlignment alignment : values())
+            {
+                if (alignment.value.equalsIgnoreCase(value) || alignment.displayName.equalsIgnoreCase(value))
+                {
+                    return alignment;
+                }
+            }
+
+            return TOP_LEFT;
+        }
+    }
+
 }

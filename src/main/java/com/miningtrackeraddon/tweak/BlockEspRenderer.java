@@ -136,7 +136,6 @@ public final class BlockEspRenderer
         return client != null
                 && client.player != null
                 && client.world != null
-                && Configs.isBlockEspOutlineOnly()
                 && Configs.getBlockEspOpacity() > 0.0F;
     }
 

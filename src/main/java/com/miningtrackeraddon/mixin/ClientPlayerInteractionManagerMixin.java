@@ -22,6 +22,8 @@ public class ClientPlayerInteractionManagerMixin
 {
     @Unique
     private Block miningtrackeraddon$pendingBlock;
+    @Unique
+    private BlockState miningtrackeraddon$pendingState;
 
     @Inject(method = "breakBlock(Lnet/minecraft/util/math/BlockPos;)Z", at = @At("HEAD"))
     private void miningtrackeraddon$captureBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
@@ -29,6 +31,7 @@ public class ClientPlayerInteractionManagerMixin
         if (!FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue())
         {
             this.miningtrackeraddon$pendingBlock = null;
+            this.miningtrackeraddon$pendingState = null;
             return;
         }
 
@@ -37,10 +40,12 @@ public class ClientPlayerInteractionManagerMixin
         {
             BlockState state = client.world.getBlockState(pos);
             this.miningtrackeraddon$pendingBlock = state.getBlock();
+            this.miningtrackeraddon$pendingState = state;
         }
         else
         {
             this.miningtrackeraddon$pendingBlock = null;
+            this.miningtrackeraddon$pendingState = null;
         }
     }
 
@@ -49,9 +54,10 @@ public class ClientPlayerInteractionManagerMixin
     {
         if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() && Boolean.TRUE.equals(cir.getReturnValue()))
         {
-            MiningStats.recordBlockMined(this.miningtrackeraddon$pendingBlock);
+            MiningStats.recordBlockMined(this.miningtrackeraddon$pendingBlock, pos, this.miningtrackeraddon$pendingState);
         }
         this.miningtrackeraddon$pendingBlock = null;
+        this.miningtrackeraddon$pendingState = null;
     }
 
     @Inject(method = "attackBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)

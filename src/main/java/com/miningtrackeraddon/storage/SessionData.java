@@ -1,17 +1,22 @@
 package com.miningtrackeraddon.storage;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
 public class SessionData
 {
+    private static final long RATE_BUCKET_DURATION_MS = 60_000L;
+
     public final long startTimeMs;
     public long endTimeMs;
     public long totalBlocks;
     public long bestStreakSeconds;
     public int peakBlocksPerHour;
     public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
+    public List<Integer> miningRateBuckets = new ArrayList<>();
 
     public SessionData(long startTimeMs)
     {
@@ -42,16 +47,23 @@ public class SessionData
         return (int) (this.totalBlocks / hours);
     }
 
+    public void recordMineEvent(long activeElapsedMs)
+    {
+        int bucketIndex = (int) Math.max(0L, activeElapsedMs / RATE_BUCKET_DURATION_MS);
+        ensureBucketCapacity(bucketIndex);
+        this.miningRateBuckets.set(bucketIndex, this.miningRateBuckets.get(bucketIndex) + 1);
+    }
+
     public String serialise()
     {
-        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.peakBlocksPerHour + "," + this.serialiseBreakdown();
+        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.peakBlocksPerHour + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
     }
 
     public static SessionData deserialise(String line)
     {
         try
         {
-            String[] parts = line.split(",", 6);
+            String[] parts = line.split(",", 7);
             SessionData session = new SessionData(Long.parseLong(parts[0]));
             session.endTimeMs = Long.parseLong(parts[1]);
             session.totalBlocks = Long.parseLong(parts[2]);
@@ -60,6 +72,10 @@ public class SessionData
             if (parts.length >= 6)
             {
                 session.blockBreakdown = deserialiseBreakdown(parts[5]);
+            }
+            if (parts.length >= 7)
+            {
+                session.miningRateBuckets = deserialiseRateBuckets(parts[6]);
             }
             return session;
         }
@@ -107,5 +123,51 @@ public class SessionData
             }
         }
         return breakdown;
+    }
+
+    private String serialiseRateBuckets()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return "";
+        }
+
+        StringJoiner joiner = new StringJoiner("|");
+        for (int value : this.miningRateBuckets)
+        {
+            joiner.add(Integer.toString(Math.max(0, value)));
+        }
+        return joiner.toString();
+    }
+
+    private static List<Integer> deserialiseRateBuckets(String value)
+    {
+        List<Integer> buckets = new ArrayList<>();
+        if (value == null || value.isBlank())
+        {
+            return buckets;
+        }
+
+        for (String entry : value.split("\\|"))
+        {
+            try
+            {
+                buckets.add(Math.max(0, Integer.parseInt(entry)));
+            }
+            catch (NumberFormatException ignored)
+            {
+                buckets.add(0);
+            }
+        }
+
+        return buckets;
+    }
+
+    private void ensureBucketCapacity(int bucketIndex)
+    {
+        while (this.miningRateBuckets.size() <= bucketIndex)
+        {
+            this.miningRateBuckets.add(0);
+        }
     }
 }

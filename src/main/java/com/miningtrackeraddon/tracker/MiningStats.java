@@ -15,19 +15,29 @@ import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.registry.Registries;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.util.math.BlockPos;
 
 public final class MiningStats
 {
     private static final long ONE_HOUR_MS = 3_600_000L;
     private static final long ONE_MINUTE_MS = 60_000L;
     private static final long STREAK_GAP_MS = 5_000L;
+    private static final boolean SMART_ETA_ENABLED = true;
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
+    private static final MiningPaceEstimator PACE_ESTIMATOR = new MiningPaceEstimator();
     private static SessionData currentSession = new SessionData(System.currentTimeMillis());
     private static String currentWorldId = "default";
+    private static boolean sessionActive = true;
+    private static boolean sessionPaused;
+    private static long pausedAtMs;
+    private static long pausedAccumulatedMs;
 
     private static long streakStartMs;
     private static long lastMineMs;
@@ -40,6 +50,7 @@ public final class MiningStats
     public static void startWorldSession(String worldId)
     {
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        sessionActive = false;
         resetSession();
 
         resetDailyProgressIfNeeded();
@@ -55,14 +66,22 @@ public final class MiningStats
 
     public static SessionData finaliseSession()
     {
+        if (sessionPaused)
+        {
+            pausedAccumulatedMs += Math.max(0L, System.currentTimeMillis() - pausedAtMs);
+            pausedAtMs = 0L;
+            sessionPaused = false;
+        }
+
         resetDailyProgressIfNeeded();
-        currentSession.endTimeMs = System.currentTimeMillis();
+        currentSession.endTimeMs = System.currentTimeMillis() - pausedAccumulatedMs;
         if (currentSession.totalBlocks > 0)
         {
             SessionHistory.save(currentSession);
         }
 
         SessionData finished = currentSession;
+        sessionActive = false;
         resetSession();
         Configs.saveToFile();
         GoalNotificationManager.clear();
@@ -71,12 +90,24 @@ public final class MiningStats
 
     public static void recordBlockMined(Block block)
     {
+        recordBlockMined(block, null, null);
+    }
+
+    public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
+    {
+        if (sessionActive == false || sessionPaused)
+        {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         MINE_EVENTS.addLast(now);
+        PACE_ESTIMATOR.recordBlock(now);
         pruneOldEvents(now);
 
         currentSession.totalBlocks++;
         currentSession.endTimeMs = now;
+        currentSession.recordMineEvent(getActiveElapsedMs(now));
         currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
 
         if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
@@ -102,15 +133,69 @@ public final class MiningStats
         {
             active.progress++;
         }
-
     }
 
     public static void resetSession()
     {
         MINE_EVENTS.clear();
         currentSession = new SessionData(System.currentTimeMillis());
+        PACE_ESTIMATOR.reset(currentSession.startTimeMs);
         streakStartMs = 0L;
         lastMineMs = 0L;
+        pausedAtMs = 0L;
+        pausedAccumulatedMs = 0L;
+        sessionPaused = false;
+    }
+
+    public static void startNewSession()
+    {
+        resetSession();
+        sessionActive = true;
+    }
+
+    public static boolean toggleSession()
+    {
+        if (sessionActive)
+        {
+            finaliseSession();
+            return false;
+        }
+
+        startNewSession();
+        return true;
+    }
+
+    public static boolean togglePauseSession()
+    {
+        if (sessionActive == false)
+        {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (sessionPaused)
+        {
+            pausedAccumulatedMs += Math.max(0L, now - pausedAtMs);
+            pausedAtMs = 0L;
+            sessionPaused = false;
+        }
+        else
+        {
+            pausedAtMs = now;
+            sessionPaused = true;
+        }
+
+        return sessionPaused;
+    }
+
+    public static boolean isSessionActive()
+    {
+        return sessionActive;
+    }
+
+    public static boolean isSessionPaused()
+    {
+        return sessionActive && sessionPaused;
     }
 
     public static void onClientTick()
@@ -133,7 +218,7 @@ public final class MiningStats
     {
         long now = System.currentTimeMillis();
         pruneOldEvents(now);
-        return getEstimatedBlocksPerHourAt(now);
+        return (int) Math.round(getPredictionSnapshot(now).blocksPerHour());
     }
 
     public static boolean hasActualBlocksPerHour()
@@ -148,11 +233,15 @@ public final class MiningStats
 
     private static int getEstimatedBlocksPerHourAt(long now)
     {
+        if (SMART_ETA_ENABLED)
+        {
+            return (int) Math.round(getPredictionSnapshot(now).blocksPerHour());
+        }
+
         if (MINE_EVENTS.isEmpty())
         {
             return 0;
         }
-
         long windowStart = Math.max(currentSession.startTimeMs, now - ONE_MINUTE_MS);
         int recentCount = 0;
 
@@ -210,7 +299,18 @@ public final class MiningStats
 
     public static long getSessionDurationMs()
     {
-        return Math.max(0L, System.currentTimeMillis() - currentSession.startTimeMs);
+        if (sessionActive == false)
+        {
+            return 0L;
+        }
+
+        long now = sessionPaused ? pausedAtMs : System.currentTimeMillis();
+        return Math.max(0L, now - currentSession.startTimeMs - pausedAccumulatedMs);
+    }
+
+    private static long getActiveElapsedMs(long now)
+    {
+        return Math.max(0L, now - currentSession.startTimeMs - pausedAccumulatedMs);
     }
 
     public static String getEstimatedTimeToDailyGoal()
@@ -221,17 +321,16 @@ public final class MiningStats
             return "Complete";
         }
 
-        int blocksPerHour = getEstimatedBlocksPerHour();
+        PredictionSnapshot prediction = getPredictionSnapshot(System.currentTimeMillis());
+        int blocksPerHour = (int) Math.round(prediction.blocksPerHour());
         if (blocksPerHour <= 0)
         {
-            return "Calculating...";
+            return prediction.paceState() == MiningPaceEstimator.PaceState.PAUSED ? "Paused" : "Calculating...";
         }
 
         long remainingBlocks = progress.target() - progress.current();
-        long seconds = (remainingBlocks * 3600L) / blocksPerHour;
-        long hours = seconds / 3600L;
-        long minutes = (seconds % 3600L) / 60L;
-        return hours > 0 ? hours + "h " + minutes + "m" : minutes + "m";
+        long seconds = Math.max(1L, Math.round((remainingBlocks * 3600.0D) / blocksPerHour));
+        return UiFormat.formatDuration(seconds);
     }
 
     public static GoalProgress getDailyGoalProgress()
@@ -252,7 +351,14 @@ public final class MiningStats
 
     public static SessionData getCurrentSession()
     {
-        currentSession.endTimeMs = System.currentTimeMillis();
+        if (sessionActive == false)
+        {
+            currentSession.endTimeMs = currentSession.startTimeMs;
+            return currentSession;
+        }
+
+        long now = sessionPaused ? pausedAtMs : System.currentTimeMillis();
+        currentSession.endTimeMs = now - pausedAccumulatedMs;
         return currentSession;
     }
 
@@ -277,6 +383,46 @@ public final class MiningStats
     public static String getCurrentWorldId()
     {
         return currentWorldId != null ? currentWorldId : WorldSessionContext.getCurrentWorldId();
+    }
+
+    public static PredictionSnapshot getPredictionSnapshot()
+    {
+        return getPredictionSnapshot(System.currentTimeMillis());
+    }
+
+    public static PredictionSnapshot getPredictionSnapshot(long now)
+    {
+        if (sessionActive == false)
+        {
+            return new PredictionSnapshot(0D, 0D, MiningPaceEstimator.PaceState.CALCULATING, 0D, 0D, 0D);
+        }
+
+        if (sessionPaused)
+        {
+            MiningRateSnapshot snapshot = PACE_ESTIMATOR.getSnapshot();
+            return new PredictionSnapshot(
+                    snapshot.predictedBlocksPerHour(),
+                    snapshot.confidence(),
+                    MiningPaceEstimator.PaceState.PAUSED,
+                    snapshot.sessionRate(),
+                    snapshot.rate60s(),
+                    snapshot.rate5m());
+        }
+
+        if (SMART_ETA_ENABLED == false)
+        {
+            double naiveRate = getEstimatedBlocksPerHourAt(now);
+            return new PredictionSnapshot(naiveRate, naiveRate > 0D ? 0.60D : 0D, naiveRate > 0D ? MiningPaceEstimator.PaceState.STABLE : MiningPaceEstimator.PaceState.CALCULATING, currentSession.getAverageBlocksPerHour(), naiveRate, naiveRate);
+        }
+
+        MiningRateSnapshot snapshot = PACE_ESTIMATOR.update(now, currentSession.totalBlocks, currentSession.startTimeMs, false);
+        return new PredictionSnapshot(
+                snapshot.predictedBlocksPerHour(),
+                snapshot.confidence(),
+                snapshot.paceState(),
+                snapshot.sessionRate(),
+                snapshot.rate60s(),
+                snapshot.rate5m());
     }
 
     public static Map<String, Long> getSortedBreakdown(SessionData session)
@@ -340,4 +486,8 @@ public final class MiningStats
     }
 
     public record ProjectProgress(String name, long blocksMined) {}
+
+    public record PredictionSnapshot(double blocksPerHour, double confidence, MiningPaceEstimator.PaceState paceState, double sessionRate, double recentRate, double longRate)
+    {
+    }
 }

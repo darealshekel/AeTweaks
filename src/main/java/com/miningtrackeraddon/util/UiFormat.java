@@ -4,11 +4,13 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 
+import com.miningtrackeraddon.tracker.MiningPaceEstimator;
 import com.miningtrackeraddon.tracker.MiningStats;
 
 public final class UiFormat
 {
     private static final DecimalFormat COMPACT_FORMAT = new DecimalFormat("0.#", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
 
     public static final int YELLOW = 0xFFF2D24B;
     public static final int TEXT_PRIMARY = 0xFFFFFFFF;
@@ -46,6 +48,57 @@ public final class UiFormat
     public static String formatBlocksPerHour(long value)
     {
         return formatCompact(value) + " blocks/hr";
+    }
+
+    public static String formatDetailedBlocksPerHour(long value)
+    {
+        return WHOLE_NUMBER_FORMAT.format(Math.max(0L, value)) + " blocks/hr";
+    }
+
+    public static String formatDuration(long totalSeconds)
+    {
+        long seconds = Math.max(0L, totalSeconds);
+        if (seconds < 60L)
+        {
+            return seconds + "s";
+        }
+
+        long hours = seconds / 3600L;
+        long minutes = (seconds % 3600L) / 60L;
+        long remainingSeconds = seconds % 60L;
+
+        if (hours > 0L)
+        {
+            long days = hours / 24L;
+            if (days > 0L)
+            {
+                long remainingHours = hours % 24L;
+                return days + "d " + remainingHours + "h";
+            }
+            return hours + "h " + minutes + "m";
+        }
+
+        return minutes + "m " + remainingSeconds + "s";
+    }
+
+    public static String formatPaceState(MiningPaceEstimator.PaceState paceState)
+    {
+        return switch (paceState)
+        {
+            case RAMPING_UP -> "Ramping Up";
+            case STABLE -> "Stable";
+            case SLOWING -> "Slowing";
+            case PAUSED -> "Paused";
+            default -> "Calculating";
+        };
+    }
+
+    public static String formatConfidence(double confidence)
+    {
+        if (confidence >= 0.72D) return "High";
+        if (confidence >= 0.40D) return "Medium";
+        if (confidence > 0.0D) return "Low";
+        return "Calculating";
     }
 
     public static int getGoalColor(MiningStats.GoalProgress progress)

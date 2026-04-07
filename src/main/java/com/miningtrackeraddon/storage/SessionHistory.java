@@ -16,6 +16,7 @@ import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SessionHistory
 {
+    private static final long MIN_SESSION_DURATION_MS = 30L * 60L * 1000L;
     private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.miningtrackeraddon.Reference.STORAGE_ID).resolve("sessions");
     private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.miningtrackeraddon.Reference.MOD_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
@@ -64,6 +65,11 @@ public final class SessionHistory
 
     public static void save(SessionData session)
     {
+        if (session == null || session.getDurationMs() < MIN_SESSION_DURATION_MS)
+        {
+            return;
+        }
+
         migrateLegacySessionsIfNeeded();
         HISTORY.add(session);
         updateBest(session);

@@ -27,6 +27,7 @@ public class GoalConfigScreen extends Screen
     @Override
     protected void init()
     {
+        ensureCursorVisible();
         int centerX = this.width / 2;
         int fieldWidth = 180;
         int inputX = centerX - fieldWidth / 2;
@@ -43,6 +44,7 @@ public class GoalConfigScreen extends Screen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
+        ensureCursorVisible();
         context.fill(0, 0, this.width, this.height, 0xFF101010);
         int centerX = this.width / 2;
         int fieldWidth = 180;
@@ -71,6 +73,15 @@ public class GoalConfigScreen extends Screen
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
+    }
+
+    private void ensureCursorVisible()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.mouse != null)
+        {
+            client.mouse.unlockCursor();
+        }
     }
 
     private TextFieldWidget createNumericField(int x, int y, int width, String value)
