@@ -8,25 +8,29 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.stream.Collectors;
-
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.math.BlockPos;
 import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.config.Configs.ProjectEntry;
 import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import com.miningtrackeraddon.MiningTrackerAddon;
+import com.miningtrackeraddon.sync.CloudSyncManager;
+import com.miningtrackeraddon.sync.DigsSyncManager;
+import com.miningtrackeraddon.sync.ScoreboardSourceResolver;
+import com.miningtrackeraddon.sync.SyncQueueManager;
 import com.miningtrackeraddon.util.UiFormat;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.registry.Registries;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
 
 public final class MiningStats
 {
     private static final long ONE_HOUR_MS = 3_600_000L;
     private static final long ONE_MINUTE_MS = 60_000L;
+    private static final long MIN_SYNCED_SESSION_DURATION_MS = 15L * 60L * 1000L;
     private static final long STREAK_GAP_MS = 5_000L;
     private static final boolean SMART_ETA_ENABLED = true;
 
@@ -38,6 +42,9 @@ public final class MiningStats
     private static boolean sessionPaused;
     private static long pausedAtMs;
     private static long pausedAccumulatedMs;
+    private static long sessionStartTotalMined;
+    private static long pausedSessionMinedOffset;
+    private static long lastPersistedTotalMinedMs;
 
     private static long streakStartMs;
     private static long lastMineMs;
@@ -52,6 +59,7 @@ public final class MiningStats
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
         sessionActive = false;
         resetSession();
+        touchCurrentWorldStats(System.currentTimeMillis());
 
         resetDailyProgressIfNeeded();
         if (FeatureToggle.TWEAK_CARRY_GOAL_PROGRESS.getBooleanValue() == false)
@@ -62,6 +70,7 @@ public final class MiningStats
         }
 
         GoalNotificationManager.clear();
+        CloudSyncManager.syncHeartbeat();
     }
 
     public static SessionData finaliseSession()
@@ -75,12 +84,16 @@ public final class MiningStats
 
         resetDailyProgressIfNeeded();
         currentSession.endTimeMs = System.currentTimeMillis() - pausedAccumulatedMs;
-        if (currentSession.totalBlocks > 0)
+        if (shouldPersistSession(currentSession))
         {
             SessionHistory.save(currentSession);
         }
 
         SessionData finished = currentSession;
+        if (sessionActive && shouldPersistSession(finished))
+        {
+            CloudSyncManager.syncFinishedSession(finished);
+        }
         sessionActive = false;
         resetSession();
         Configs.saveToFile();
@@ -95,33 +108,18 @@ public final class MiningStats
 
     public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
     {
-        if (sessionActive == false || sessionPaused)
-        {
-            return;
-        }
-
         long now = System.currentTimeMillis();
-        MINE_EVENTS.addLast(now);
-        PACE_ESTIMATOR.recordBlock(now);
-        pruneOldEvents(now);
+        boolean authoritativeMode = DigsSyncManager.hasAuthoritativeTotalDigs();
+        long beforeLifetime = Configs.totalBlocksMined;
+        Configs.WorldStatsEntry beforeWorldStats = getCurrentWorldStats();
+        long beforeSourceTotal = beforeWorldStats == null ? 0L : Math.max(0L, beforeWorldStats.totalBlocks);
+        long beforeSession = Math.max(0L, currentSession.totalBlocks);
 
-        currentSession.totalBlocks++;
-        currentSession.endTimeMs = now;
-        currentSession.recordMineEvent(getActiveElapsedMs(now));
-        currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
-
-        if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
-        {
-            streakStartMs = now;
-        }
-        lastMineMs = now;
-        currentSession.bestStreakSeconds = Math.max(currentSession.bestStreakSeconds, (now - streakStartMs) / 1000L);
-
-        if (block != null)
-        {
-            String key = Registries.BLOCK.getId(block).toString();
-            currentSession.blockBreakdown.merge(key, 1L, Long::sum);
-        }
+        // Realtime block tracking must always advance local counters.
+        // Authoritative scoreboard sync is used for reconciliation, not suppression.
+        Configs.totalBlocksMined++;
+        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        worldStats.totalBlocks++;
 
         resetDailyProgressIfNeeded();
         long previousDaily = Configs.dailyProgress;
@@ -132,6 +130,55 @@ public final class MiningStats
         if (active != null)
         {
             active.progress++;
+        }
+
+        if (sessionActive && sessionPaused == false)
+        {
+            MINE_EVENTS.addLast(now);
+            PACE_ESTIMATOR.recordBlock(now);
+            pruneOldEvents(now);
+
+            currentSession.totalBlocks++;
+            currentSession.endTimeMs = now;
+            currentSession.recordMineEvent(getActiveElapsedMs(now));
+            currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
+
+            if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
+            {
+                streakStartMs = now;
+            }
+            lastMineMs = now;
+            currentSession.bestStreakSeconds = Math.max(currentSession.bestStreakSeconds, (now - streakStartMs) / 1000L);
+
+            if (block != null)
+            {
+                String key = Registries.BLOCK.getId(block).toString();
+                currentSession.blockBreakdown.merge(key, 1L, Long::sum);
+            }
+        }
+
+        CloudSyncManager.onBlockMined(now);
+
+        Configs.WorldStatsEntry afterWorldStats = getCurrentWorldStats();
+        long afterSourceTotal = afterWorldStats == null ? beforeSourceTotal : Math.max(0L, afterWorldStats.totalBlocks);
+        debugAttribution("manual-block",
+                beforeSourceTotal,
+                afterSourceTotal,
+                Math.max(0L, afterSourceTotal - beforeSourceTotal));
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+        {
+            WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
+            MiningTrackerAddon.LOGGER.info(
+                    "[AET_DEBUG] block-mined worldKey={} worldName={} authoritative={} sessionActive={} sessionBefore={} sessionAfter={} lifetimeBefore={} lifetimeAfter={}",
+                    world.id(),
+                    world.displayName(),
+                    authoritativeMode,
+                    sessionActive,
+                    beforeSession,
+                    currentSession.totalBlocks,
+                    beforeLifetime,
+                    Configs.totalBlocksMined
+            );
         }
     }
 
@@ -145,12 +192,27 @@ public final class MiningStats
         pausedAtMs = 0L;
         pausedAccumulatedMs = 0L;
         sessionPaused = false;
+        sessionStartTotalMined = Math.max(0L, getCurrentSourceTotalMined());
+        pausedSessionMinedOffset = 0L;
     }
 
     public static void startNewSession()
     {
         resetSession();
         sessionActive = true;
+        sessionStartTotalMined = getCurrentSourceTotalMined();
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+        {
+            WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
+            MiningTrackerAddon.LOGGER.info(
+                    "[AET_DEBUG] session-start worldKey={} worldName={} sessionStartSourceTotal={} lifetime={}",
+                    world.id(),
+                    world.displayName(),
+                    sessionStartTotalMined,
+                    Configs.totalBlocksMined
+            );
+        }
+        CloudSyncManager.syncHeartbeat();
     }
 
     public static boolean toggleSession()
@@ -185,6 +247,8 @@ public final class MiningStats
             sessionPaused = true;
         }
 
+        CloudSyncManager.syncHeartbeat();
+
         return sessionPaused;
     }
 
@@ -200,12 +264,22 @@ public final class MiningStats
 
     public static void onClientTick()
     {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.world != null && client.player != null)
+        {
+            WorldSessionContext.update(client);
+        }
+
         long now = System.currentTimeMillis();
         if (now - lastDailyResetCheckMs >= 1_000L)
         {
             lastDailyResetCheckMs = now;
             resetDailyProgressIfNeeded();
         }
+
+        CloudSyncManager.onClientTick(now);
+        DigsSyncManager.onClientTick(now);
+        SyncQueueManager.onClientTick(now);
     }
 
     public static int getBlocksPerHour()
@@ -264,7 +338,161 @@ public final class MiningStats
 
     public static long getTotalMined()
     {
-        return currentSession.totalBlocks;
+        return Configs.totalBlocksMined;
+    }
+
+    public static long getCurrentSourceTotalMined()
+    {
+        Configs.WorldStatsEntry worldStats = getCurrentWorldStats();
+        if (worldStats == null)
+        {
+            return 0L;
+        }
+        return Math.max(0L, worldStats.totalBlocks);
+    }
+
+    public static long getSessionTotal()
+    {
+        return getSessionBlocksMined();
+    }
+
+    public static long getSessionBlocksMined()
+    {
+        return Math.max(0L, currentSession.totalBlocks);
+    }
+
+    public static void applyAeternumTotalMined(long totalDigs, long now)
+    {
+        if (totalDigs < 0L)
+        {
+            return;
+        }
+
+        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        long previousSourceTotal = Math.max(0L, worldStats.totalBlocks);
+        if (totalDigs < previousSourceTotal)
+        {
+            long correction = previousSourceTotal - totalDigs;
+            if (correction <= 100L)
+            {
+                worldStats.totalBlocks = totalDigs;
+                Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined - correction);
+                if (sessionActive)
+                {
+                    sessionStartTotalMined = Math.max(0L, sessionStartTotalMined - correction);
+                    currentSession.totalBlocks = Math.max(0L, currentSession.totalBlocks - correction);
+                }
+                debugAttribution("authoritative-correction", previousSourceTotal, worldStats.totalBlocks, 0L);
+                return;
+            }
+            return;
+        }
+
+        long delta = Math.max(0L, totalDigs - previousSourceTotal);
+        worldStats.totalBlocks = totalDigs;
+        if (delta > 0L)
+        {
+            Configs.totalBlocksMined += delta;
+            // Authoritative scoreboard deltas are the live mining update path on some servers.
+            // Trigger sync from this authoritative path as well.
+            CloudSyncManager.onBlockMined(now);
+        }
+
+        if (sessionActive)
+        {
+            if (sessionStartTotalMined <= 0L)
+            {
+                sessionStartTotalMined = previousSourceTotal;
+            }
+
+            if (sessionPaused && delta > 0L)
+            {
+                pausedSessionMinedOffset += delta;
+            }
+
+            long sessionTotal = Math.max(0L, totalDigs - sessionStartTotalMined - pausedSessionMinedOffset);
+            long sessionDelta = Math.max(0L, sessionTotal - currentSession.totalBlocks);
+            currentSession.totalBlocks = sessionTotal;
+            currentSession.endTimeMs = now;
+
+            if (sessionPaused == false && sessionDelta > 0L)
+            {
+                currentSession.recordMinedAmount(getActiveElapsedMs(now), sessionDelta);
+                currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
+            }
+        }
+
+        debugAttribution("authoritative-update", previousSourceTotal, worldStats.totalBlocks, delta);
+
+        if (now - lastPersistedTotalMinedMs >= 5_000L)
+        {
+            Configs.saveToFile();
+            lastPersistedTotalMinedMs = now;
+        }
+    }
+
+    public static void bootstrapSourceTotalFromScoreboard(long scoreboardPlayerTotal, String scoreboardSourceName, long now)
+    {
+        if (scoreboardPlayerTotal <= 0L)
+        {
+            return;
+        }
+
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        if (sourceMatchesCurrentWorld(worldInfo, scoreboardSourceName) == false)
+        {
+            if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+            {
+                MiningTrackerAddon.LOGGER.info(
+                        "[AET_DEBUG] scoreboard-bootstrap-skipped worldKey={} worldName={} scoreboardSourceName={}",
+                        worldInfo.id(),
+                        worldInfo.displayName(),
+                        scoreboardSourceName
+                );
+            }
+            return;
+        }
+
+        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        long sourceBefore = Math.max(0L, worldStats.totalBlocks);
+        long lifetimeBefore = Math.max(0L, Configs.totalBlocksMined);
+
+        if (scoreboardPlayerTotal <= sourceBefore)
+        {
+            return;
+        }
+
+        long delta = scoreboardPlayerTotal - sourceBefore;
+        worldStats.totalBlocks = scoreboardPlayerTotal;
+        Configs.totalBlocksMined += delta;
+
+        // Bootstrap should not retroactively inflate session progress.
+        if (sessionActive)
+        {
+            sessionStartTotalMined += delta;
+        }
+
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+        {
+            String sourceKey = ScoreboardSourceResolver.sourceKey(
+                    worldInfo.displayName(),
+                    worldInfo
+            );
+            String sourceDisplay = ScoreboardSourceResolver.displayName(
+                    worldInfo.displayName(),
+                    worldInfo
+            );
+            MiningTrackerAddon.LOGGER.info(
+                    "[AET_DEBUG] scoreboard-bootstrap-applied sourceKey={} sourceName={} scoreboardPlayerTotal={} sourceBefore={} sourceAfter={} lifetimeBefore={} lifetimeAfter={}",
+                    sourceKey,
+                    sourceDisplay,
+                    scoreboardPlayerTotal,
+                    sourceBefore,
+                    worldStats.totalBlocks,
+                    lifetimeBefore,
+                    Configs.totalBlocksMined
+            );
+        }
     }
 
     public static String getSessionDurationClock()
@@ -477,6 +705,79 @@ public final class MiningStats
         }
     }
 
+    private static Configs.WorldStatsEntry touchCurrentWorldStats(long now)
+    {
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        Configs.WorldStatsEntry entry = Configs.getOrCreateWorldStats(
+                worldInfo.id(),
+                worldInfo.displayName(),
+                worldInfo.kind(),
+                worldInfo.host());
+        entry.lastSeenAt = now;
+        return entry;
+    }
+
+    private static Configs.WorldStatsEntry getCurrentWorldStats()
+    {
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        for (Configs.WorldStatsEntry entry : Configs.WORLD_STATS)
+        {
+            if (worldInfo.id().equals(entry.worldId))
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean sourceMatchesCurrentWorld(WorldSessionContext.WorldInfo worldInfo, String scoreboardSourceName)
+    {
+        if (worldInfo == null)
+        {
+            return false;
+        }
+
+        String currentKey = ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo);
+        WorldSessionContext.WorldInfo scoreboardInfo = new WorldSessionContext.WorldInfo(
+                worldInfo.id(),
+                scoreboardSourceName == null || scoreboardSourceName.isBlank() ? worldInfo.displayName() : scoreboardSourceName,
+                worldInfo.kind(),
+                worldInfo.host()
+        );
+        String scoreboardKey = ScoreboardSourceResolver.sourceKey(scoreboardInfo.displayName(), scoreboardInfo);
+        return currentKey.equalsIgnoreCase(scoreboardKey);
+    }
+
+    private static void debugAttribution(String reason, long beforeSourceTotal, long afterSourceTotal, long delta)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        {
+            return;
+        }
+
+        WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
+        MiningTrackerAddon.LOGGER.info(
+                "[AET_DEBUG] source-update reason={} worldKey={} worldName={} sessionActive={} sessionBlocks={} sourceBefore={} sourceAfter={} delta={} lifetime={}",
+                reason,
+                world.id(),
+                world.displayName(),
+                sessionActive,
+                currentSession.totalBlocks,
+                beforeSourceTotal,
+                afterSourceTotal,
+                delta,
+                Configs.totalBlocksMined
+        );
+    }
+
+    private static boolean shouldPersistSession(SessionData session)
+    {
+        return session != null
+                && session.totalBlocks > 0L
+                && session.getDurationMs() >= MIN_SYNCED_SESSION_DURATION_MS;
+    }
+
     public record GoalProgress(String label, boolean enabled, long current, long target)
     {
         public int getPercent()
@@ -491,3 +792,4 @@ public final class MiningStats
     {
     }
 }
+
