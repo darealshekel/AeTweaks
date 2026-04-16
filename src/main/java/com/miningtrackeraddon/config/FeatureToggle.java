@@ -31,7 +31,8 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_HUD_TOTAL_MINED("tweakMiningHudTotalMined", true, "", "Shows total mined in the HUD."),
     TWEAK_HUD_GOAL_PROGRESS("tweakMiningHudGoalProgress", true, "", "Shows daily goal progress in the HUD."),
     TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows blocks per hour in the HUD."),
-    TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows ETA to the daily goal in the HUD.");
+    TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows ETA to the daily goal in the HUD."),
+    TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Draws a panel border and background around the mining HUD.");
 
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
 

@@ -14,11 +14,22 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 
 final class ScoreboardParser
 {
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d[\\d,._ ]*)");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d[\\d,._ ]*(?:\\.\\d+)?)(?:\\s*([kKmMbBtT]))?");
     private static final Pattern USERNAME_PATTERN = Pattern.compile("(?i)(?:^|\\s|[#>\\[(])([A-Za-z0-9_]{3,16})(?:$|\\s|[\\])<:,.-])");
     private static final Pattern DECLARED_RANK_PATTERN = Pattern.compile("^(?:\\[)?#?(\\d{1,3})(?:\\]|[.):-])?\\s+");
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "player", "personal", "my", "me", "self");
-    private static final List<String> SERVER_TOTAL_MARKERS = List.of("total", "server", "global", "overall", "community", "everyone", "all players");
+    private static final List<String> SERVER_TOTAL_MARKERS = List.of(
+            "total",
+            "server",
+            "global",
+            "overall",
+            "community",
+            "everyone",
+            "all players",
+            "blocks mined",
+            "mined blocks",
+            "network"
+    );
 
     private ScoreboardParser()
     {
@@ -139,6 +150,7 @@ final class ScoreboardParser
 
     private static long parseTotalDigs(String objectiveTitle, List<ScoreboardLine> rawLines, List<AeternumLeaderboardEntry> leaderboardEntries)
     {
+        long bestExplicitTotal = 0L;
         for (int index = 0; index < rawLines.size(); index++)
         {
             ScoreboardLine line = rawLines.get(index);
@@ -147,16 +159,46 @@ final class ScoreboardParser
                 long value = extractValueNear(rawLines, index);
                 if (value > 0L)
                 {
-                    return value;
+                    bestExplicitTotal = Math.max(bestExplicitTotal, value);
                 }
             }
         }
 
-        long summed = leaderboardEntries.stream()
-                .mapToLong(AeternumLeaderboardEntry::digs)
-                .sum();
+        if (bestExplicitTotal > 0L)
+        {
+            return bestExplicitTotal;
+        }
 
-        return Math.max(0L, summed);
+        // Fallback: accept large non-player aggregate-like rows from objective score values.
+        long objectiveFallback = 0L;
+        for (ScoreboardLine line : rawLines)
+        {
+            if (line.usernameCandidate() != null)
+            {
+                continue;
+            }
+            if (PERSONAL_MARKERS.stream().anyMatch(line.lower()::contains))
+            {
+                continue;
+            }
+            if (line.numericValue() < 10_000L)
+            {
+                continue;
+            }
+            if (line.declaredRank() > 0)
+            {
+                continue;
+            }
+            objectiveFallback = Math.max(objectiveFallback, line.numericValue());
+        }
+
+        if (objectiveFallback > 0L)
+        {
+            return objectiveFallback;
+        }
+
+        // Final fallback: do not fabricate server total from partial leaderboard rows.
+        return 0L;
     }
 
     private static boolean looksLikeServerTotalLine(String objectiveTitle, ScoreboardLine line)
@@ -349,15 +391,35 @@ final class ScoreboardParser
 
         while (matcher.find())
         {
-            String digits = matcher.group(1).replaceAll("[^0-9]", "");
-            if (digits.isBlank())
+            String numberPart = matcher.group(1);
+            String suffixPart = matcher.group(2) == null ? "" : matcher.group(2).toLowerCase(Locale.ROOT);
+            if (numberPart == null || numberPart.isBlank())
             {
                 continue;
             }
 
             try
             {
-                long parsed = Long.parseLong(digits);
+                String normalized = numberPart
+                        .replace(" ", "")
+                        .replace(",", "")
+                        .replace("_", "");
+                if (normalized.isBlank())
+                {
+                    continue;
+                }
+
+                double parsedValue = Double.parseDouble(normalized);
+                double multiplier = switch (suffixPart)
+                {
+                    case "k" -> 1_000D;
+                    case "m" -> 1_000_000D;
+                    case "b" -> 1_000_000_000D;
+                    case "t" -> 1_000_000_000_000D;
+                    default -> 1D;
+                };
+
+                long parsed = Math.max(0L, Math.round(parsedValue * multiplier));
                 if (parsed > best)
                 {
                     best = parsed;
@@ -418,9 +480,15 @@ final class ScoreboardParser
 
         long numericValue()
         {
-            if (this.usernameCandidate != null && this.inlineNumber > 0L)
+            if (this.usernameCandidate != null)
             {
-                return this.inlineNumber;
+                long explicitValue = extractExplicitPlayerValue(this.cleaned, this.usernameCandidate, this.declaredRank);
+                if (explicitValue > 0L)
+                {
+                    return explicitValue;
+                }
+
+                return Math.max(0, this.scoreValue);
             }
 
             if (this.inlineNumber > 0L)
@@ -430,5 +498,22 @@ final class ScoreboardParser
 
             return Math.max(0, this.scoreValue);
         }
+    }
+
+    private static long extractExplicitPlayerValue(String cleaned, String usernameCandidate, int declaredRank)
+    {
+        if (cleaned == null || cleaned.isBlank() || usernameCandidate == null || usernameCandidate.isBlank())
+        {
+            return 0L;
+        }
+
+        String candidate = cleaned;
+        if (declaredRank > 0)
+        {
+            candidate = DECLARED_RANK_PATTERN.matcher(candidate).replaceFirst("");
+        }
+
+        candidate = candidate.replaceFirst("(?i)" + Pattern.quote(usernameCandidate), " ");
+        return extractNumber(candidate);
     }
 }

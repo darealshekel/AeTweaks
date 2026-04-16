@@ -4,12 +4,15 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 
+import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.tracker.MiningPaceEstimator;
 import com.miningtrackeraddon.tracker.MiningStats;
 
 public final class UiFormat
 {
-    private static final DecimalFormat COMPACT_FORMAT = new DecimalFormat("0.#", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat COMPACT_FORMAT_SMALL = new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat COMPACT_FORMAT_MEDIUM = new DecimalFormat("0.#", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat COMPACT_FORMAT_LARGE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
 
     public static final int YELLOW = 0xFFF2D24B;
@@ -27,6 +30,11 @@ public final class UiFormat
 
     public static String formatCompact(long value)
     {
+        if (Configs.Generic.ABBREVIATED_NUMBERS.getBooleanValue() == false)
+        {
+            return WHOLE_NUMBER_FORMAT.format(value);
+        }
+
         long absolute = Math.abs(value);
         if (absolute < 1_000L) return Long.toString(value);
         if (absolute < 1_000_000L) return suffix(value, 1_000D, "K");
@@ -52,6 +60,10 @@ public final class UiFormat
 
     public static String formatDetailedBlocksPerHour(long value)
     {
+        if (Configs.Generic.ABBREVIATED_NUMBERS.getBooleanValue())
+        {
+            return formatCompact(value) + " blocks/hr";
+        }
         return WHOLE_NUMBER_FORMAT.format(Math.max(0L, value)) + " blocks/hr";
     }
 
@@ -123,6 +135,9 @@ public final class UiFormat
 
     private static String suffix(long value, double divisor, String suffix)
     {
-        return COMPACT_FORMAT.format(value / divisor) + suffix;
+        boolean negative = value < 0L;
+        double scaled = Math.abs(value) / divisor;
+        DecimalFormat format = scaled < 10D ? COMPACT_FORMAT_SMALL : (scaled < 100D ? COMPACT_FORMAT_MEDIUM : COMPACT_FORMAT_LARGE);
+        return (negative ? "-" : "") + format.format(scaled) + suffix;
     }
 }

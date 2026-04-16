@@ -23,6 +23,7 @@ public final class DigsSyncManager
     private static volatile SyncStatus status = SyncStatus.CONNECTED;
     private static volatile long lastHealthySignalMs;
     private static volatile long lastFailureSignalMs;
+
     private static volatile long debugSidebarTotal;
     private static volatile long debugTabTotal;
     private static volatile long debugChosenTotal;
@@ -36,7 +37,6 @@ public final class DigsSyncManager
     private static volatile long debugSidebarRawScore;
     private static volatile long debugTabRawScore;
     private static volatile String debugSkipReason = "";
-    private static String lastDetectionFingerprint = "";
 
     private DigsSyncManager()
     {
@@ -48,57 +48,20 @@ public final class DigsSyncManager
 
         MinecraftClient client = MinecraftClient.getInstance();
         PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client);
-        PlayerDigsModel parsed = PlayerDigsParser.parse(client);
-        TotalSelection selection = selectAuthoritativeTotal(client, detection, parsed);
-        applyDetectionDebug(detection);
-        debugDetection(detection);
+        PlayerDigsModel parserModel = PlayerDigsParser.parse(client);
+        TotalSelection selection = selectAuthoritativeTotal(client, detection, parserModel, now);
+        applyDetectionDebug(detection, selection);
 
-        if (selection != null && selection.chosenTotal() > 0L)
+        if (selection.model() != null)
         {
-            debug("final-authoritative-total sourceName={} parserTotal={} detectorTotal={} tabTotal={} sidebarTotal={} cachedTotal={} chosenTotal={} chosenSourceType={} reason={}",
-                    selection.sourceName(),
-                    selection.parserTotal(),
-                    selection.detectorTotal(),
-                    selection.tabTotal(),
-                    selection.sidebarTotal(),
-                    selection.cachedTotal(),
-                    selection.chosenTotal(),
-                    selection.chosenSourceType(),
-                    selection.reason());
-            MiningStats.bootstrapSourceTotalFromScoreboard(selection.chosenTotal(), selection.sourceName(), now);
-            MiningStats.applyAeternumTotalMined(selection.chosenTotal(), now);
             latestModel = selection.model();
-            debug("scoreboard-player-total-detected username={} total={} sourceName={} detector={} parserTotal={} detectorTotal={} tabTotal={} sidebarTotal={} cachedTotal={} sidebarObjective={} tabObjective={} final=true",
-                    latestModel.username(),
-                    latestModel.totalDigs(),
-                    latestModel.server(),
-                    selection.chosenSourceType(),
-                    selection.parserTotal(),
-                    selection.detectorTotal(),
-                    selection.tabTotal(),
-                    selection.sidebarTotal(),
-                    selection.cachedTotal(),
-                    detection.sidebarObjectiveTitle(),
-                    detection.tabObjectiveTitle());
-            debug("Parsed player total digs username={} total={} objective={}", latestModel.username(), latestModel.totalDigs(), latestModel.objectiveTitle());
+            MiningStats.bootstrapSourceTotalFromScoreboard(latestModel.totalDigs(), latestModel.server(), now);
+            MiningStats.applyAeternumTotalMined(latestModel.totalDigs(), now);
             if (status != SyncStatus.SYNCED)
             {
                 status = SyncStatus.CONNECTED;
             }
             touchHealthy();
-        }
-        else if (detection.skipReason().isBlank() == false)
-        {
-            debug("bootstrap-skipped reason={} sidebarObjective={} sidebarUser={} sidebarRaw={} sidebarRendered={} tabObjective={} tabUser={} tabRaw={} tabRendered={}",
-                    detection.skipReason(),
-                    detection.sidebarObjectiveTitle(),
-                    detection.sidebarMatchedUsername(),
-                    detection.sidebarRawScore(),
-                    detection.sidebarRenderedText(),
-                    detection.tabObjectiveTitle(),
-                    detection.tabMatchedUsername(),
-                    detection.tabRawScore(),
-                    detection.tabRenderedText());
         }
 
         if (latestModel == null || latestModel.isValid() == false)
@@ -112,20 +75,20 @@ public final class DigsSyncManager
         }
 
         String fingerprint = fingerprint(latestModel);
-    if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
-    {
-    return;
-    }
+        if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
+        {
+            return;
+        }
 
-    if (fingerprint.equals(lastQueuedFingerprint) && status == SyncStatus.QUEUED)
-    {
-    return;
-    }
+        if (fingerprint.equals(lastQueuedFingerprint) && status == SyncStatus.QUEUED)
+        {
+            return;
+        }
 
-    if (now - lastQueueAttemptMs < MIN_SYNC_INTERVAL_MS)
-    {
-    return;
-    }
+        if (now - lastQueueAttemptMs < MIN_SYNC_INTERVAL_MS)
+        {
+            return;
+        }
 
         lastQueueAttemptMs = now;
         lastQueuedFingerprint = fingerprint;
@@ -185,20 +148,71 @@ public final class DigsSyncManager
             return false;
         }
 
-        if (latestModel != null
-        && latestModel.isValid()
-        && recentHealthyMs > 0L
-        && now - recentHealthyMs <= HUD_HEALTH_STALE_MS)
+        return recentHealthyMs > 0L && now - recentHealthyMs <= HUD_HEALTH_STALE_MS;
+    }
+
+    private static TotalSelection selectAuthoritativeTotal(MinecraftClient client,
+                                                           PersonalTotalDetector.Detection detection,
+                                                           PlayerDigsModel parserModel,
+                                                           long now)
+    {
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        String sourceName = ScoreboardSourceResolver.displayName(worldInfo != null ? worldInfo.displayName() : "", worldInfo);
+
+        long tabTotal = Math.max(0L, detection.tabTotal());
+        long sidebarTotal = Math.max(0L, detection.sidebarTotal());
+        long parserTotal = parserModel != null && parserModel.isValid() ? Math.max(0L, parserModel.totalDigs()) : 0L;
+        long cachedTotal = Math.max(0L, MiningStats.getCurrentSourceTotalMined());
+
+        Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, cachedTotal);
+        if (!chosen.valid())
         {
-        return true;
+            return new TotalSelection(sourceName, null, chosen.reason());
         }
 
-        return recentHealthyMs > 0L && now - recentHealthyMs <= HUD_HEALTH_STALE_MS;
+        String username = resolveUsername(client, parserModel);
+        String objectiveTitle = resolveObjectiveTitle(parserModel, detection);
+        PlayerDigsModel model = new PlayerDigsModel(username, chosen.total(), now, sourceName, objectiveTitle);
+        return new TotalSelection(sourceName, model, chosen.reason());
+    }
+
+    private static Candidate chooseBestCandidate(long tabTotal, long sidebarTotal, long parserTotal, long cachedTotal)
+    {
+        // Reject tiny ambiguous totals when stronger evidence exists.
+        long strongest = Math.max(Math.max(tabTotal, sidebarTotal), Math.max(parserTotal, cachedTotal));
+
+        Candidate tab = validate("tab", tabTotal, strongest);
+        Candidate sidebar = validate("sidebar", sidebarTotal, strongest);
+        Candidate parser = validate("parser", parserTotal, strongest);
+        Candidate cached = validate("cached", cachedTotal, strongest);
+
+        if (tab.valid()) return tab;
+        if (sidebar.valid()) return sidebar;
+        if (parser.valid()) return parser;
+        if (cached.valid()) return cached;
+
+        return new Candidate("none", 0L, false, "no-valid-total");
+    }
+
+    private static Candidate validate(String source, long total, long strongest)
+    {
+        if (total <= 0L)
+        {
+            return new Candidate(source, 0L, false, "missing");
+        }
+
+        if (total < 50L && strongest >= 1_000L)
+        {
+            return new Candidate(source, total, false, "tiny-rejected");
+        }
+
+        return new Candidate(source, total, true, "accepted");
     }
 
     private static JsonObject buildPayload(PlayerDigsModel model)
     {
         MinecraftClient client = MinecraftClient.getInstance();
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
 
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
@@ -206,6 +220,15 @@ public final class DigsSyncManager
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+
+        JsonObject world = new JsonObject();
+        world.addProperty("key", worldInfo.id());
+        world.addProperty("display_name", worldInfo.displayName());
+        world.addProperty("kind", normaliseWorldKind(worldInfo.kind()));
+        world.addProperty("host", (String) null);
+        world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
+        world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
+        payload.add("world", world);
 
         JsonObject digs = new JsonObject();
         digs.addProperty("username", model.username());
@@ -218,240 +241,14 @@ public final class DigsSyncManager
         return payload;
     }
 
-    private static boolean canSync()
+    private static String normaliseWorldKind(String kind)
     {
-        return Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
-    }
-
-    public static String getStatusLabel()
-    {
-        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
-        int pending = snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS);
-        if (snapshot.flushActive() && pending > 0)
+        if ("singleplayer".equals(kind) || "multiplayer".equals(kind) || "realm".equals(kind))
         {
-            return "Syncing";
-        }
-        if (pending > 0)
-        {
-            return "Queued";
+            return kind;
         }
 
-        return switch (status)
-        {
-            case SYNCED -> "Synced";
-            case FAILED -> "Retrying";
-            default -> "Connected";
-        };
-    }
-
-    public static void resetForDisconnect()
-    {
-        latestModel = null;
-        lastQueueAttemptMs = 0L;
-        status = SyncStatus.CONNECTED;
-        lastFailureSignalMs = 0L;
-        resetDebugDetection();
-    }
-
-    public static void resetForWorldChange(String worldId)
-    {
-        latestModel = null;
-        lastQueuedFingerprint = null;
-        lastSuccessfulFingerprint = null;
-        lastQueueAttemptMs = 0L;
-        status = SyncStatus.CONNECTED;
-        lastFailureSignalMs = 0L;
-        resetDebugDetection();
-        debug("Reset digs sync state for world switch worldId={}", worldId);
-    }
-
-    public static long getDebugSidebarTotal()
-    {
-        return debugSidebarTotal;
-    }
-
-    public static long getDebugTabTotal()
-    {
-        return debugTabTotal;
-    }
-
-    public static long getDebugChosenTotal()
-    {
-        return debugChosenTotal;
-    }
-
-    public static String getDebugChosenSource()
-    {
-        return debugChosenSource;
-    }
-
-    public static String getDebugSidebarSample()
-    {
-        return debugSidebarSample;
-    }
-
-    public static String getDebugTabSample()
-    {
-        return debugTabSample;
-    }
-
-    public static String getDebugSkipReason()
-    {
-        return debugSkipReason;
-    }
-
-    public static String getDebugSidebarObjective()
-    {
-        return debugSidebarObjective;
-    }
-
-    public static String getDebugTabObjective()
-    {
-        return debugTabObjective;
-    }
-
-    public static String getDebugSidebarMatchedUser()
-    {
-        return debugSidebarMatchedUser;
-    }
-
-    public static String getDebugTabMatchedUser()
-    {
-        return debugTabMatchedUser;
-    }
-
-    public static long getDebugSidebarRawScore()
-    {
-        return debugSidebarRawScore;
-    }
-
-    public static long getDebugTabRawScore()
-    {
-        return debugTabRawScore;
-    }
-
-    public static boolean hasAuthoritativeTotalDigs()
-    {
-        if (latestModel == null || latestModel.isValid() == false)
-        {
-            return false;
-        }
-
-        long now = System.currentTimeMillis();
-        if (now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS)
-        {
-            return false;
-        }
-
-        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        String currentSourceName = ScoreboardSourceResolver.displayName(
-                worldInfo != null ? worldInfo.displayName() : "",
-                worldInfo
-        );
-
-        return currentSourceName.equalsIgnoreCase(latestModel.server());
-    }
-
-    private static TotalSelection selectAuthoritativeTotal(MinecraftClient client,
-                                                           PersonalTotalDetector.Detection detection,
-                                                           PlayerDigsModel parsed)
-    {
-        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        String sourceName = ScoreboardSourceResolver.displayName(
-                worldInfo != null ? worldInfo.displayName() : "",
-                worldInfo
-        );
-        long tabTotal = Math.max(0L, detection.tabTotal());
-        long sidebarTotal = Math.max(0L, detection.sidebarTotal());
-        long detectorTotal = Math.max(0L, detection.chosenTotal());
-        long parserTotal = parsed != null && parsed.isValid() ? Math.max(0L, parsed.totalDigs()) : 0L;
-        long currentSourceTotal = Math.max(0L, MiningStats.getCurrentSourceTotalMined());
-        long higherKnown = Math.max(Math.max(Math.max(tabTotal, sidebarTotal), detectorTotal), currentSourceTotal);
-
-        Candidate tabCandidate = candidate("tab", tabTotal, tabTotal > 0L, tabTotal > 0L ? "valid" : "missing");
-        Candidate sidebarCandidate = candidate("sidebar", sidebarTotal, sidebarTotal > 0L, sidebarTotal > 0L ? "valid" : "missing");
-        Candidate detectorCandidate = candidate("detector", detectorTotal, detectorTotal > 0L, detectorTotal > 0L ? "valid" : "missing");
-        Candidate cachedCandidate = candidate("cached", currentSourceTotal, currentSourceTotal > 0L, currentSourceTotal > 0L ? "valid" : "missing");
-
-        boolean parserValid = parserTotal > 0L;
-        String parserReason = parserValid ? "valid" : "missing";
-        if (parserValid && parserTotal <= 1000L)
-        {
-            parserValid = false;
-            parserReason = "low_confidence";
-        }
-        if (parserValid && tabTotal > 0L && parserTotal * 50L < tabTotal)
-        {
-            parserValid = false;
-            parserReason = "overridden_by_tab";
-        }
-        if (parserValid && sidebarTotal > 0L && parserTotal * 50L < sidebarTotal)
-        {
-            parserValid = false;
-            parserReason = "overridden_by_sidebar";
-        }
-        if (parserValid && tabTotal <= 0L && detectorTotal > 0L && parserTotal * 50L < detectorTotal)
-        {
-            parserValid = false;
-            parserReason = "overridden_by_detector";
-        }
-        if (parserValid && higherKnown > 0L && parserTotal * 200L < higherKnown)
-        {
-            parserValid = false;
-            parserReason = "overridden_by_known_total";
-        }
-        Candidate parserCandidate = candidate("parser", parserTotal, parserValid, parserReason);
-        if (!parserCandidate.valid() && parserTotal > 0L)
-        {
-            debug("parser-total-rejected total={} reason={}", parserTotal, parserCandidate.reason());
-        }
-
-        long chosenTotal = 0L;
-        String chosenSourceType = "none";
-        String reason = "none";
-        if (tabCandidate.valid())
-        {
-            chosenTotal = tabCandidate.total();
-            chosenSourceType = tabCandidate.sourceType();
-            reason = "preferred-order";
-        }
-        else if (sidebarCandidate.valid())
-        {
-            chosenTotal = sidebarCandidate.total();
-            chosenSourceType = sidebarCandidate.sourceType();
-            reason = "preferred-order";
-        }
-        else if (detectorCandidate.valid())
-        {
-            chosenTotal = detectorCandidate.total();
-            chosenSourceType = detectorCandidate.sourceType();
-            reason = "preferred-order";
-        }
-        else if (parserCandidate.valid())
-        {
-            chosenTotal = parserCandidate.total();
-            chosenSourceType = parserCandidate.sourceType();
-            reason = "fallback-parser";
-        }
-        else if (cachedCandidate.valid())
-        {
-            chosenTotal = cachedCandidate.total();
-            chosenSourceType = cachedCandidate.sourceType();
-            reason = "fallback-cached";
-        }
-
-        String username = resolveUsername(client, parsed);
-        String objectiveTitle = resolveObjectiveTitle(parsed, detection);
-        PlayerDigsModel model = chosenTotal > 0L
-                ? new PlayerDigsModel(username, chosenTotal, System.currentTimeMillis(), sourceName, objectiveTitle)
-                : null;
-        return new TotalSelection(sourceName, parserTotal, detectorTotal, tabTotal, sidebarTotal, currentSourceTotal, chosenTotal, chosenSourceType, reason, model);
-    }
-
-    private static Candidate candidate(String sourceType, long total, boolean valid, String reason)
-    {
-        debug("total-candidate sourceType={} total={} valid={} reason={}", sourceType, total, valid, reason);
-        return new Candidate(sourceType, total, valid, reason);
+        return "unknown";
     }
 
     private static String resolveUsername(MinecraftClient client, PlayerDigsModel parsed)
@@ -484,19 +281,19 @@ public final class DigsSyncManager
         return "Scoreboard";
     }
 
-    private static String dedupeKey(PlayerDigsModel model)
-{
-    return model.username().toLowerCase(Locale.ROOT)
-            + "|" + model.server().toLowerCase(Locale.ROOT)
-            + "|" + model.totalDigs();
-}
+    private static boolean canSync()
+    {
+        return Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
+    }
 
-   
+    private static String dedupeKey(PlayerDigsModel model)
+    {
+        return model.username().toLowerCase(Locale.ROOT) + "|" + model.server().toLowerCase(Locale.ROOT) + "|" + model.totalDigs();
+    }
+
     private static String fingerprint(PlayerDigsModel model)
     {
-    return model.username().toLowerCase(Locale.ROOT)
-            + "|" + model.server().toLowerCase(Locale.ROOT)
-            + "|" + model.totalDigs();
+        return dedupeKey(model);
     }
 
     private static String fingerprint(JsonObject payload)
@@ -510,19 +307,7 @@ public final class DigsSyncManager
         String username = digs.has("username") ? digs.get("username").getAsString() : "";
         String server = digs.has("server") ? digs.get("server").getAsString() : "";
         long total = digs.has("total_digs") ? digs.get("total_digs").getAsLong() : 0L;
-        return username.toLowerCase(Locale.ROOT)
-        + "|" + server.toLowerCase(Locale.ROOT)
-        + "|" + total;
-    }
-
-    private static void debug(String message, Object... args)
-    {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
-        {
-            return;
-        }
-
-        com.miningtrackeraddon.MiningTrackerAddon.LOGGER.info("[AET_DEBUG] " + message, args);
+        return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total;
     }
 
     private static void clearStaleModel(long now)
@@ -532,99 +317,113 @@ public final class DigsSyncManager
             return;
         }
 
-        if (now - latestModel.capturedAtMs() <= AUTHORITATIVE_MODEL_STALE_MS)
+        if (now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS)
         {
-            return;
+            latestModel = null;
         }
-
-        debug("Clearing stale authoritative digs model server={} ageMs={}",
-                latestModel.server(),
-                now - latestModel.capturedAtMs());
-        latestModel = null;
     }
 
-    private static void applyDetectionDebug(PersonalTotalDetector.Detection detection)
+    private static void applyDetectionDebug(PersonalTotalDetector.Detection detection, TotalSelection selection)
     {
         debugSidebarTotal = detection.sidebarTotal();
         debugTabTotal = detection.tabTotal();
-        debugChosenTotal = detection.chosenTotal();
-        debugChosenSource = detection.chosenSource();
-        debugSidebarObjective = trimSample(detection.sidebarObjectiveTitle());
-        debugTabObjective = trimSample(detection.tabObjectiveTitle());
-        debugSidebarMatchedUser = trimSample(detection.sidebarMatchedUsername());
-        debugTabMatchedUser = trimSample(detection.tabMatchedUsername());
+        debugChosenTotal = selection.model() == null ? 0L : selection.model().totalDigs();
+        debugChosenSource = selection.model() == null ? "none" : selection.reason();
+        debugSidebarObjective = detection.sidebarObjectiveTitle();
+        debugTabObjective = detection.tabObjectiveTitle();
+        debugSidebarMatchedUser = detection.sidebarMatchedUsername();
+        debugTabMatchedUser = detection.tabMatchedUsername();
         debugSidebarRawScore = detection.sidebarRawScore();
         debugTabRawScore = detection.tabRawScore();
-        debugSidebarSample = trimSample(detection.sidebarRenderedText());
-        debugTabSample = trimSample(detection.tabRenderedText());
-        debugSkipReason = detection.skipReason();
+        debugSidebarSample = detection.sidebarRenderedText();
+        debugTabSample = detection.tabRenderedText();
+        debugSkipReason = selection.model() == null ? selection.reason() : "";
     }
 
-    private static void resetDebugDetection()
+    public static String getStatusLabel()
+    {
+        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        int pending = snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS);
+        if (snapshot.flushActive() && pending > 0)
+        {
+            return "Syncing";
+        }
+        if (pending > 0)
+        {
+            return "Queued";
+        }
+
+        return switch (status)
+        {
+            case SYNCED -> "Synced";
+            case FAILED -> "Retrying";
+            default -> "Connected";
+        };
+    }
+
+    public static void resetForDisconnect()
+    {
+        latestModel = null;
+        lastQueueAttemptMs = 0L;
+        status = SyncStatus.CONNECTED;
+        lastFailureSignalMs = 0L;
+        lastQueuedFingerprint = null;
+        lastSuccessfulFingerprint = null;
+        clearDebug();
+    }
+
+    public static void resetForWorldChange(String worldId)
+    {
+        resetForDisconnect();
+    }
+
+    public static boolean hasAuthoritativeTotalDigs()
+    {
+        if (latestModel == null || latestModel.isValid() == false)
+        {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS)
+        {
+            return false;
+        }
+
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        String currentSourceName = ScoreboardSourceResolver.displayName(worldInfo != null ? worldInfo.displayName() : "", worldInfo);
+        return currentSourceName.equalsIgnoreCase(latestModel.server());
+    }
+
+    public static long getDebugSidebarTotal() { return debugSidebarTotal; }
+    public static long getDebugTabTotal() { return debugTabTotal; }
+    public static long getDebugChosenTotal() { return debugChosenTotal; }
+    public static String getDebugChosenSource() { return debugChosenSource; }
+    public static String getDebugSidebarSample() { return debugSidebarSample; }
+    public static String getDebugTabSample() { return debugTabSample; }
+    public static String getDebugSkipReason() { return debugSkipReason; }
+    public static String getDebugSidebarObjective() { return debugSidebarObjective; }
+    public static String getDebugTabObjective() { return debugTabObjective; }
+    public static String getDebugSidebarMatchedUser() { return debugSidebarMatchedUser; }
+    public static String getDebugTabMatchedUser() { return debugTabMatchedUser; }
+    public static long getDebugSidebarRawScore() { return debugSidebarRawScore; }
+    public static long getDebugTabRawScore() { return debugTabRawScore; }
+
+    private static void clearDebug()
     {
         debugSidebarTotal = 0L;
         debugTabTotal = 0L;
         debugChosenTotal = 0L;
         debugChosenSource = "none";
+        debugSidebarSample = "";
+        debugTabSample = "";
         debugSidebarObjective = "";
         debugTabObjective = "";
         debugSidebarMatchedUser = "";
         debugTabMatchedUser = "";
         debugSidebarRawScore = 0L;
         debugTabRawScore = 0L;
-        debugSidebarSample = "";
-        debugTabSample = "";
         debugSkipReason = "";
-        lastDetectionFingerprint = "";
-    }
-
-    private static String trimSample(String sample)
-    {
-        if (sample == null)
-        {
-            return "";
-        }
-
-        String trimmed = sample.trim();
-        if (trimmed.length() <= 80)
-        {
-            return trimmed;
-        }
-        return trimmed.substring(0, 80) + "...";
-    }
-
-    private static void debugDetection(PersonalTotalDetector.Detection detection)
-    {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
-        {
-            return;
-        }
-
-        String fingerprint = detection.sidebarTotal()
-                + "|" + detection.tabTotal()
-                + "|" + detection.chosenTotal()
-                + "|" + detection.chosenSource()
-                + "|" + detection.sidebarRawScore()
-                + "|" + detection.tabRawScore()
-                + "|" + detection.skipReason();
-        if (fingerprint.equals(lastDetectionFingerprint))
-        {
-            return;
-        }
-        lastDetectionFingerprint = fingerprint;
-
-        debug("sidebar-detected objective={} user={} rawScore={} rendered={} total={}",
-                detection.sidebarObjectiveTitle(),
-                detection.sidebarMatchedUsername(),
-                detection.sidebarRawScore(),
-                detection.sidebarRenderedText(),
-                detection.sidebarTotal());
-        debug("tab-detected objective={} user={} rawScore={} rendered={} total={}",
-                detection.tabObjectiveTitle(),
-                detection.tabMatchedUsername(),
-                detection.tabRawScore(),
-                detection.tabRenderedText(),
-                detection.tabTotal());
     }
 
     private static void touchHealthy()
@@ -645,17 +444,7 @@ public final class DigsSyncManager
     {
     }
 
-    private record TotalSelection(
-            String sourceName,
-            long parserTotal,
-            long detectorTotal,
-            long tabTotal,
-            long sidebarTotal,
-            long cachedTotal,
-            long chosenTotal,
-            String chosenSourceType,
-            String reason,
-            PlayerDigsModel model)
+    private record TotalSelection(String sourceName, PlayerDigsModel model, String reason)
     {
     }
 }

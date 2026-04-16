@@ -1,6 +1,7 @@
 package com.miningtrackeraddon.sync;
 
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -8,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ServerInfo;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
@@ -65,10 +67,9 @@ public final class SourceScanManager
         }
 
         PlayerDigsModel playerDigs = PlayerDigsParser.parse(client);
-        boolean recognizedAeternum = ScoreboardSourceResolver.isCanonicalAeternum(world);
         boolean compatible = chosen != null
                 && chosen.snapshot().isValid()
-                && (recognizedAeternum || chosen.confidence() >= COMPATIBLE_CONFIDENCE_THRESHOLD);
+                && chosen.confidence() >= COMPATIBLE_CONFIDENCE_THRESHOLD;
 
         String scoreboardTitle = chosen != null
                 ? chosen.snapshot().objectiveTitle()
@@ -86,6 +87,7 @@ public final class SourceScanManager
 
         List<String> detectedFields = detectFields(totalDigs, playerTotalDigs, chosen);
         String fingerprint = buildFingerprint(world, compatible, chosen, playerTotalDigs, detectedFields);
+        String iconUrl = resolveIconUrl(client);
 
         return new SourceScanResult(
                 compatible,
@@ -99,7 +101,7 @@ public final class SourceScanManager
                 totalDigs,
                 playerTotalDigs,
                 fingerprint,
-                null
+                iconUrl
         );
     }
 
@@ -124,6 +126,28 @@ public final class SourceScanManager
                 buildEmptyFingerprint(world),
                 null
         );
+    }
+
+    private static String resolveIconUrl(MinecraftClient client)
+    {
+        if (client == null)
+        {
+            return null;
+        }
+
+        ServerInfo serverInfo = client.getCurrentServerEntry();
+        if (serverInfo == null)
+        {
+            return null;
+        }
+
+        byte[] favicon = serverInfo.getFavicon();
+        if (favicon == null || favicon.length == 0)
+        {
+            return null;
+        }
+
+        return "data:image/png;base64," + Base64.getEncoder().encodeToString(favicon);
     }
 
     private static long resolvePlayerTotalDigs(String username,

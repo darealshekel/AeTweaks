@@ -13,7 +13,6 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 public final class AeternumLeaderboardReader
 {
     private static final long DEBUG_LOG_INTERVAL_MS = 10_000L;
-    private static final int FALLBACK_AETERNUM_CONFIDENCE = 70;
     private static long lastDebugLogMs;
 
     private AeternumLeaderboardReader()
@@ -63,35 +62,24 @@ public final class AeternumLeaderboardReader
             chosen = bestCandidate.orElse(null);
         }
 
-        boolean recognizedServer = ScoreboardSourceResolver.isCanonicalAeternum(worldInfo);
-
         if (chosen == null)
         {
             debug("Skipping leaderboard sync because no valid scoreboard candidate was found.");
             return null;
         }
 
-        if (recognizedServer == false && chosen.confidence() < FALLBACK_AETERNUM_CONFIDENCE)
-        {
-            debug("Skipping leaderboard sync because server detection is unknown and confidence={} objective={}",
-                    chosen.confidence(),
-                    chosen.snapshot().objectiveTitle());
-            return null;
-        }
-
         if (chosen.snapshot().isValid() == false)
         {
-            debug("Aeternum leaderboard not parsed. Objectives={}", scoreboard.getObjectives().stream()
+            debug("Leaderboard not parsed. Objectives={}", scoreboard.getObjectives().stream()
                     .map(objective -> objective.getDisplayName().getString())
                     .toList());
             return null;
         }
 
         debug(
-                "Aeternum leaderboard parsed from '{}' confidence={} recognizedServer={} entries={} total={} rows={}",
+                "Leaderboard parsed from '{}' confidence={} entries={} total={} rows={}",
                 chosen.snapshot().objectiveTitle(),
                 chosen.confidence(),
-                recognizedServer,
                 chosen.snapshot().entries().size(),
                 chosen.snapshot().totalDigs(),
                 chosen.describeLines()
@@ -107,11 +95,6 @@ public final class AeternumLeaderboardReader
                 chosen.snapshot().totalDigs(),
                 chosen.snapshot().entries()
         );
-    }
-
-    public static boolean isAeternumServer()
-    {
-        return ScoreboardSourceResolver.isCanonicalAeternum(WorldSessionContext.getCurrentWorldInfo());
     }
 
     private static void debug(String message, Object... args)

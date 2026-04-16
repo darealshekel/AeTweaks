@@ -76,5 +76,6 @@ final class ApiClient
 
         int bodyLength = jsonBody == null ? 0 : jsonBody.length();
         MiningTrackerAddon.LOGGER.info("[AET_DEBUG] sync-request-send endpoint={} bodyLength={}", endpoint, bodyLength);
+        MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] sending payload endpoint={} bodyLength={}", endpoint, bodyLength);
     }
 }

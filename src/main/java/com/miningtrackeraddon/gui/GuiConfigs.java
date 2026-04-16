@@ -12,6 +12,7 @@ import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.ui.ProjectManagerScreen;
+import com.miningtrackeraddon.ui.WebsiteLinkScreen;
 
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
@@ -117,6 +118,12 @@ public class GuiConfigs extends GuiConfigsBase
                 return;
             }
 
+            if (this.tab == ConfigGuiTab.WEBSITE_LINK)
+            {
+                MinecraftClient.getInstance().setScreen(new WebsiteLinkScreen(this.parent));
+                return;
+            }
+
             if (this.tab == ConfigGuiTab.SUMMARY)
             {
                 MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.getCurrentSession(), this.parent));
@@ -142,6 +149,7 @@ public class GuiConfigs extends GuiConfigsBase
         TWEAKS("Toggles"),
         HOTKEYS("Hotkeys"),
         PROJECTS("Projects"),
+        WEBSITE_LINK("Website Link"),
         SUMMARY("Summary"),
         HISTORY("History");
 

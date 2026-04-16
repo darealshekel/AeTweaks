@@ -15,6 +15,7 @@ import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SyncQueueManager
 {
+    private static final String LOG_PREFIX = "[AET_SYNC]";
     private static final long PERIODIC_FLUSH_INTERVAL_MS = 5_000L;
     private static final String LINK_ENDPOINT = "https://aewt-sync-pro.vercel.app/api/auth/link-code/claim";
 
@@ -56,6 +57,9 @@ public final class SyncQueueManager
     {
         if (queue == null)
         {
+            MiningTrackerAddon.LOGGER.info("{} send-skipped-flush-guard reason={} detail=queue_not_initialized",
+                    LOG_PREFIX,
+                    reason == null || reason.isBlank() ? "manual" : reason);
             return;
         }
 
@@ -76,24 +80,28 @@ public final class SyncQueueManager
     {
         initialize();
         queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", payload, true);
+        requestFlush("enqueue cloud live state");
     }
 
     public static void enqueueCloudFinishedSession(String sessionKey, JsonObject payload)
     {
         initialize();
         queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, false);
+        requestFlush("enqueue finished session");
     }
 
     public static void enqueuePlayerTotalDigs(String dedupeKey, JsonObject payload)
     {
         initialize();
         queue.enqueue(SyncItemType.PLAYER_TOTAL_DIGS, dedupeKey == null ? "" : dedupeKey, payload, true);
+        requestFlush("enqueue player total digs");
     }
 
     public static void enqueueWebsiteLinkClaim(String dedupeKey, JsonObject payload)
     {
         initialize();
         queue.enqueue(SyncItemType.WEBSITE_LINK_CLAIM, dedupeKey == null ? "" : dedupeKey, payload, true);
+        requestFlush("enqueue website link");
     }
 
     public static PendingSyncQueue.Snapshot getSnapshot()
@@ -106,20 +114,97 @@ public final class SyncQueueManager
     {
         try
         {
+            if (item == null || item.isValid() == false)
+            {
+                MiningTrackerAddon.LOGGER.warn("{} send-skipped-item-invalid reason=invalid_queue_item", LOG_PREFIX);
+                return SyncSendResult.drop(-1, "Invalid queue item.", "");
+            }
+
             String endpoint = resolveEndpoint(item.type);
             if (endpoint == null || endpoint.isBlank())
             {
+                MiningTrackerAddon.LOGGER.warn("{} send-skipped-no-endpoint id={} type={}", LOG_PREFIX, item.id, item.type);
                 return SyncSendResult.retry(-1, "No sync endpoint configured.", "");
             }
 
+            boolean hasClientId = item.payload != null && item.payload.has("client_id")
+                    && item.payload.get("client_id").isJsonPrimitive()
+                    && item.payload.get("client_id").getAsString().isBlank() == false;
+            boolean hasUsername = item.payload != null && item.payload.has("username")
+                    && item.payload.get("username").isJsonPrimitive()
+                    && item.payload.get("username").getAsString().isBlank() == false;
+            boolean hasSessionToken = item.payload != null && item.payload.has("minecraft_uuid")
+                    && item.payload.get("minecraft_uuid").isJsonPrimitive()
+                    && item.payload.get("minecraft_uuid").getAsString().isBlank() == false;
+            boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null
+                    && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
+
+            if (hasClientId == false || hasUsername == false)
+            {
+                MiningTrackerAddon.LOGGER.warn(
+                        "{} send-skipped-no-auth id={} type={} hasClientId={} hasUsername={}",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type,
+                        hasClientId,
+                        hasUsername
+                );
+                return SyncSendResult.drop(400, "Missing client_id/username.", "");
+            }
+
             String secret = usesSyncSecret(item.type) ? Configs.cloudSyncSecret : null;
+            boolean hasSyncSecret = secret != null && secret.isBlank() == false;
+            if (usesSyncSecret(item.type) && hasSyncSecret == false)
+            {
+                MiningTrackerAddon.LOGGER.warn(
+                        "{} send-skipped-no-sync-secret id={} type={} hasSessionToken={} hasLinkedIdentity={} note=continuing_without_secret_header",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type,
+                        hasSessionToken,
+                        hasLinkedIdentity
+                );
+            }
+            if (hasSessionToken == false)
+            {
+                MiningTrackerAddon.LOGGER.warn("{} send-skipped-no-session-token id={} type={} note=payload_missing_minecraft_uuid",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type);
+            }
+            if (hasLinkedIdentity == false)
+            {
+                MiningTrackerAddon.LOGGER.warn("{} send-skipped-no-linked-identity id={} type={} note=config_not_linked",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type);
+            }
+
             Map<String, String> headers = Map.of(
                     "x-aetweaks-sync-item-id", item.id,
                     "x-aetweaks-sync-item-type", item.type.name());
 
+            MiningTrackerAddon.LOGGER.info(
+                    "{} request-sent id={} type={} endpoint={}",
+                    LOG_PREFIX,
+                    item.id,
+                    item.type,
+                    endpoint
+            );
+            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] request sent id={} type={} endpoint={} payload={}",
+                    item.id,
+                    item.type,
+                    endpoint,
+                    summarizePayload(item.payload));
             HttpResponse<String> response = ApiClient.postJsonBlocking(endpoint, secret, item.payload.toString(), headers);
             int statusCode = response.statusCode();
             String body = response.body() == null ? "" : response.body();
+            MiningTrackerAddon.LOGGER.info("{} response-received id={} type={} status={}", LOG_PREFIX, item.id, item.type, statusCode);
+            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] response status={} id={} type={} detail={}",
+                    statusCode,
+                    item.id,
+                    item.type,
+                    extractError(body, statusCode >= 200 && statusCode < 300 ? "ok" : "http_error"));
 
             if (statusCode >= 200 && statusCode < 300)
             {
@@ -138,6 +223,7 @@ public final class SyncQueueManager
         catch (Exception exception)
         {
             String detail = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+            MiningTrackerAddon.LOGGER.warn("{} request-failed id={} type={} error={}", LOG_PREFIX, item.id, item.type, detail);
             return SyncSendResult.retry(-1, detail, "");
         }
     }
@@ -187,12 +273,61 @@ public final class SyncQueueManager
         return fallback;
     }
 
+    private static String summarizePayload(JsonObject payload)
+    {
+        if (payload == null)
+        {
+            return "null";
+        }
+
+        String username = payload.has("username") && payload.get("username").isJsonPrimitive()
+                ? payload.get("username").getAsString()
+                : "";
+        String source = "";
+        long total = -1L;
+        if (payload.has("world") && payload.get("world").isJsonObject())
+        {
+            JsonObject world = payload.getAsJsonObject("world");
+            if (world.has("display_name") && world.get("display_name").isJsonPrimitive())
+            {
+                source = world.get("display_name").getAsString();
+            }
+            else if (world.has("key") && world.get("key").isJsonPrimitive())
+            {
+                source = world.get("key").getAsString();
+            }
+        }
+        if (payload.has("current_world_totals") && payload.get("current_world_totals").isJsonObject())
+        {
+            JsonObject totals = payload.getAsJsonObject("current_world_totals");
+            if (totals.has("total_blocks") && totals.get("total_blocks").isJsonPrimitive())
+            {
+                total = totals.get("total_blocks").getAsLong();
+            }
+        }
+        else if (payload.has("player_total_digs") && payload.get("player_total_digs").isJsonObject())
+        {
+            JsonObject digs = payload.getAsJsonObject("player_total_digs");
+            if (digs.has("total_digs") && digs.get("total_digs").isJsonPrimitive())
+            {
+                total = digs.get("total_digs").getAsLong();
+            }
+            if (source.isBlank() && digs.has("server") && digs.get("server").isJsonPrimitive())
+            {
+                source = digs.get("server").getAsString();
+            }
+        }
+
+        return "username=" + username + " source=" + source + " total=" + total;
+    }
+
     private static final class QueueListener implements PendingSyncQueue.Listener
     {
         @Override
         public void onLoaded(PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.info("AeTweaks sync queue loaded: size={} lastSuccess={} flushActive={}",
+            MiningTrackerAddon.LOGGER.info("{} queue-loaded size={} lastSuccess={} flushActive={}",
+                    LOG_PREFIX,
                     snapshot.queueSize(),
                     PendingSyncQueue.formatInstant(snapshot.lastSuccessfulSyncAtMs()),
                     snapshot.flushActive());
@@ -201,13 +336,14 @@ public final class SyncQueueManager
         @Override
         public void onLoadFailed(String detail)
         {
-            MiningTrackerAddon.LOGGER.warn("AeTweaks sync queue failed to load: {}", detail);
+            MiningTrackerAddon.LOGGER.warn("{} queue-load-failed detail={}", LOG_PREFIX, detail);
         }
 
         @Override
         public void onItemQueued(QueuedSyncItem item, boolean replaced, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.info("AeTweaks sync item queued: id={} type={} replaced={} queueSize={}",
+            MiningTrackerAddon.LOGGER.info("{} item-enqueued id={} type={} replaced={} queueSize={}",
+                    LOG_PREFIX,
                     item.id,
                     item.type,
                     replaced,
@@ -218,7 +354,8 @@ public final class SyncQueueManager
         @Override
         public void onFlushStarted(String reason, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.info("AeTweaks sync flush started: reason={} queueSize={} lastSuccess={}",
+            MiningTrackerAddon.LOGGER.info("{} flush-started reason={} queueSize={} lastSuccess={}",
+                    LOG_PREFIX,
                     reason,
                     snapshot.queueSize(),
                     PendingSyncQueue.formatInstant(snapshot.lastSuccessfulSyncAtMs()));
@@ -227,7 +364,8 @@ public final class SyncQueueManager
         @Override
         public void onFlushFinished(String reason, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.info("AeTweaks sync flush finished: reason={} queueSize={} flushActive={}",
+            MiningTrackerAddon.LOGGER.info("{} flush-finished reason={} queueSize={} flushActive={}",
+                    LOG_PREFIX,
                     reason,
                     snapshot.queueSize(),
                     snapshot.flushActive());
@@ -236,7 +374,8 @@ public final class SyncQueueManager
         @Override
         public void onItemSucceeded(QueuedSyncItem item, SyncSendResult result, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.info("AeTweaks sync flush succeeded: id={} type={} status={} queueSize={}",
+            MiningTrackerAddon.LOGGER.info("{} item-removed-success id={} type={} status={} queueSize={}",
+                    LOG_PREFIX,
                     item.id,
                     item.type,
                     result.statusCode(),
@@ -247,7 +386,8 @@ public final class SyncQueueManager
         @Override
         public void onRetryScheduled(QueuedSyncItem item, SyncSendResult result, long nextRetryAtMs, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.warn("AeTweaks sync flush failed: id={} type={} status={} retryCount={} nextRetry={} queueSize={} detail={}",
+            MiningTrackerAddon.LOGGER.warn("{} item-retained-retry id={} type={} status={} retryCount={} nextRetry={} queueSize={} detail={}",
+                    LOG_PREFIX,
                     item.id,
                     item.type,
                     result.statusCode(),
@@ -261,7 +401,8 @@ public final class SyncQueueManager
         @Override
         public void onItemDropped(QueuedSyncItem item, SyncSendResult result, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.warn("AeTweaks sync item dropped: id={} type={} status={} queueSize={} detail={}",
+            MiningTrackerAddon.LOGGER.warn("{} item-dropped id={} type={} status={} queueSize={} detail={}",
+                    LOG_PREFIX,
                     item.id,
                     item.type,
                     result.statusCode(),
@@ -273,7 +414,8 @@ public final class SyncQueueManager
         @Override
         public void onPersistenceFailed(String detail, PendingSyncQueue.Snapshot snapshot)
         {
-            MiningTrackerAddon.LOGGER.warn("AeTweaks sync queue persistence failed: queueSize={} detail={}",
+            MiningTrackerAddon.LOGGER.warn("{} queue-persist-failed queueSize={} detail={}",
+                    LOG_PREFIX,
                     snapshot.queueSize(),
                     detail);
         }

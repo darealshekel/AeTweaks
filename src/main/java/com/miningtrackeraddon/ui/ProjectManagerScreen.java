@@ -25,20 +25,22 @@ public class ProjectManagerScreen extends Screen
     private static final int ROW_HEIGHT = 32;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB = 18;
-    private static final int COLOR_OVERLAY = 0xB8121620;
-    private static final int COLOR_PANEL = 0xB4171F2D;
-    private static final int COLOR_CARD = 0x99202A3B;
-    private static final int COLOR_CARD_SOFT = 0x7F182130;
-    private static final int COLOR_BORDER = 0xAA42657D;
-    private static final int COLOR_ACCENT = 0xFF67E7FF;
-    private static final int COLOR_ACCENT_SOFT = 0x5540D7FF;
-    private static final int COLOR_VALUE = 0xFFF5FBFF;
-    private static final int COLOR_LABEL = 0xB6C7D6E7;
-    private static final int COLOR_MUTED = 0x8EA5B9CC;
+    private static final int COLOR_OVERLAY = 0xC20B0D12;
+    private static final int COLOR_PANEL = 0xD1171A20;
+    private static final int COLOR_CARD = 0xB11B1F27;
+    private static final int COLOR_CARD_SOFT = 0x8F14181F;
+    private static final int COLOR_INSET = 0xA111141A;
+    private static final int COLOR_BORDER = 0xAA4A3538;
+    private static final int COLOR_BORDER_SOFT = 0x66443638;
+    private static final int COLOR_ACCENT = 0xFFE3BD78;
+    private static final int COLOR_ACCENT_SOFT = 0x553A2411;
+    private static final int COLOR_VALUE = 0xFFF5EEE7;
+    private static final int COLOR_LABEL = 0xD2D5C9BF;
+    private static final int COLOR_MUTED = 0x958B8178;
     private static final int COLOR_SUCCESS = 0xFF7EEDAA;
-    private static final int COLOR_ROW_SELECTED = 0x5A28516B;
-    private static final int COLOR_ROW_HOVER = 0x2A203748;
-    private static final int COLOR_ROW_ALT = 0x140E1824;
+    private static final int COLOR_ROW_SELECTED = 0x5534221A;
+    private static final int COLOR_ROW_HOVER = 0x33261A16;
+    private static final int COLOR_ROW_ALT = 0x16100F12;
 
     private final Screen parent;
     private int selectedIndex;
@@ -123,6 +125,8 @@ public class ProjectManagerScreen extends Screen
         drawHeader(context, animatedLayout);
         drawProjectList(context, animatedLayout, mouseX, mouseY);
         drawDetailCard(context, animatedLayout);
+        drawFieldShell(context, this.nameField);
+        drawFieldShell(context, this.progressField);
 
         super.render(context, mouseX, mouseY, delta);
     }
@@ -231,7 +235,7 @@ public class ProjectManagerScreen extends Screen
     {
         context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(220, layout.contentWidth / 2), 16, "Project Progress", COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal("Manage saved mining projects with the same polished summary style."), layout.contentX + 2, layout.headerY + 34, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Use the same warm card system for stored progress and active project edits."), layout.contentX + 2, layout.headerY + 34, COLOR_LABEL, false);
     }
 
     private void drawProjectList(DrawContext context, Layout layout, int mouseX, int mouseY)
@@ -246,8 +250,8 @@ public class ProjectManagerScreen extends Screen
         int listHeight = layout.listHeight - 56 - BUTTON_HEIGHT - 10;
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
-        context.fill(listX, listY, listX + listWidth, listY + listHeight, 0x22131B27);
-        context.drawBorder(listX, listY, listWidth, listHeight, 0x663A5368);
+        context.fill(listX, listY, listX + listWidth, listY + listHeight, COLOR_INSET);
+        context.drawBorder(listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         int visibleRows = getVisibleRowCount(layout);
         this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, Configs.PROJECTS.size() - visibleRows)));
@@ -265,7 +269,7 @@ public class ProjectManagerScreen extends Screen
             ProjectEntry project = Configs.PROJECTS.get(projectIndex);
             int rowY = drawY + row * ROW_HEIGHT;
             boolean hovered = mouseX >= listX && mouseX <= listX + viewportWidth && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 4;
-            int rowColor = projectIndex == this.selectedIndex ? COLOR_ROW_SELECTED : hovered ? COLOR_ROW_HOVER : ((row & 1) == 0 ? COLOR_ROW_ALT : 0x0F111823);
+            int rowColor = projectIndex == this.selectedIndex ? COLOR_ROW_SELECTED : hovered ? COLOR_ROW_HOVER : ((row & 1) == 0 ? COLOR_ROW_ALT : 0x120E1116);
             context.fill(listX + 4, rowY, listX + viewportWidth - 4, rowY + ROW_HEIGHT - 4, rowColor);
 
             String name = truncateToWidth(project.name, viewportWidth - 110);
@@ -287,6 +291,7 @@ public class ProjectManagerScreen extends Screen
     {
         fillCard(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, COLOR_CARD, COLOR_BORDER);
         context.drawText(this.textRenderer, Text.literal("Project Detail"), layout.detailX + CARD_PADDING, layout.detailY + 10, COLOR_VALUE, false);
+        context.drawText(this.textRenderer, Text.literal("Edit the saved project name and total without leaving the panel."), layout.detailX + CARD_PADDING, layout.detailY + 24, COLOR_MUTED, false);
 
         ProjectEntry selected = getSelectedProject();
         if (selected == null)
@@ -305,7 +310,7 @@ public class ProjectManagerScreen extends Screen
         int statsY = layout.detailY + 212;
         int statWidth = (detailWidth - CARD_GAP) / 2;
         drawStatCard(context, detailX, statsY, statWidth, 46, "Project Total", UiFormat.formatCompact(selected.progress), "blocks");
-        drawStatCard(context, detailX + statWidth + CARD_GAP, statsY, statWidth, 46, "Current Session", UiFormat.formatCompact(MiningStats.getTotalMined()), "blocks");
+        drawStatCard(context, detailX + statWidth + CARD_GAP, statsY, statWidth, 46, "Current Session", UiFormat.formatCompact(MiningStats.getSessionBlocksMined()), "blocks");
     }
 
     private void updateFieldPositions(Layout layout)
@@ -358,9 +363,22 @@ public class ProjectManagerScreen extends Screen
     {
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(maxLength);
+        field.setDrawsBackground(false);
+        field.setEditableColor(COLOR_VALUE);
+        field.setUneditableColor(COLOR_MUTED);
         field.setChangedListener(value -> refreshButtons());
         this.addDrawableChild(field);
         return field;
+    }
+
+    private void drawFieldShell(DrawContext context, TextFieldWidget field)
+    {
+        if (field == null)
+        {
+            return;
+        }
+
+        fillCard(context, field.getX() - 1, field.getY() - 1, field.getWidth() + 2, 22, COLOR_INSET, field.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
     }
 
     private void populateFields()
@@ -473,13 +491,13 @@ public class ProjectManagerScreen extends Screen
     private void drawStatusChip(DrawContext context, int x, int y, String label, int accentColor)
     {
         int width = this.textRenderer.getWidth(label) + 14;
-        fillCard(context, x, y, width, 16, COLOR_CARD_SOFT, accentColor);
-        context.drawText(this.textRenderer, Text.literal(label), x + 7, y + 4, COLOR_VALUE, false);
+        fillCard(context, x, y, width, 16, COLOR_INSET, accentColor);
+        context.drawText(this.textRenderer, Text.literal(label), x + 7, y + 4, accentColor, false);
     }
 
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
     {
-        fillCard(context, x, y, width, height, COLOR_CARD_SOFT, 0x663C556C);
+        fillCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
         context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y + 7, COLOR_LABEL, false);
         context.drawText(this.textRenderer, Text.literal(value), x + CARD_PADDING, y + 20, COLOR_VALUE, false);
         context.drawText(this.textRenderer, Text.literal(suffix), x + CARD_PADDING, y + 32, COLOR_MUTED, false);
@@ -489,13 +507,13 @@ public class ProjectManagerScreen extends Screen
     {
         fillCard(context, x, y, width, height, fillColor, borderColor);
         int textX = x + (width - this.textRenderer.getWidth(text)) / 2;
-        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_VALUE, false);
+        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_ACCENT, false);
     }
 
     private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, fillColor);
-        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_ACCENT_SOFT);
+        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_BORDER_SOFT);
         context.drawBorder(x, y, width, height, borderColor);
     }
 
@@ -509,9 +527,9 @@ public class ProjectManagerScreen extends Screen
 
         int thumbHeight = getScrollbarThumbHeight(height, visibleRows);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight, maxScroll);
-        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, 0x33203042);
-        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, 0x66506A7F);
-        int thumbColor = this.draggingScrollbar ? 0xFFD8FCFF : isOverScrollbar(mouseX, mouseY) ? 0xFFACF3FF : 0xFF7BDCEA;
+        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, 0x33131218);
+        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
+        int thumbColor = this.draggingScrollbar ? 0xFFF3D8A3 : isOverScrollbar(mouseX, mouseY) ? 0xFFE9C78B : 0xFFB28A57;
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 

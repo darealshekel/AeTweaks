@@ -39,18 +39,20 @@ public class SummaryScreen extends Screen
     private static final int BREAKDOWN_ROW_HEIGHT = 20;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB = 18;
-    private static final int COLOR_OVERLAY = 0xB8121620;
-    private static final int COLOR_PANEL = 0xB4171F2D;
-    private static final int COLOR_CARD = 0x99202A3B;
-    private static final int COLOR_CARD_SOFT = 0x7F182130;
-    private static final int COLOR_BORDER = 0xAA42657D;
-    private static final int COLOR_ACCENT = 0xFF67E7FF;
-    private static final int COLOR_ACCENT_SOFT = 0x5540D7FF;
-    private static final int COLOR_GRAPH_FILL = 0xAA5CE1FF;
-    private static final int COLOR_GRAPH_GRID = 0x223C5264;
-    private static final int COLOR_VALUE = 0xFFF5FBFF;
-    private static final int COLOR_LABEL = 0xB6C7D6E7;
-    private static final int COLOR_MUTED = 0x8EA5B9CC;
+    private static final int COLOR_OVERLAY = 0xC20B0D12;
+    private static final int COLOR_PANEL = 0xD1171A20;
+    private static final int COLOR_CARD = 0xB11B1F27;
+    private static final int COLOR_CARD_SOFT = 0x8F14181F;
+    private static final int COLOR_INSET = 0xA111141A;
+    private static final int COLOR_BORDER = 0xAA4A3538;
+    private static final int COLOR_BORDER_SOFT = 0x66443638;
+    private static final int COLOR_ACCENT = 0xFFE3BD78;
+    private static final int COLOR_ACCENT_SOFT = 0x553A2411;
+    private static final int COLOR_GRAPH_FILL = 0xCCB75E3A;
+    private static final int COLOR_GRAPH_GRID = 0x22372628;
+    private static final int COLOR_VALUE = 0xFFF5EEE7;
+    private static final int COLOR_LABEL = 0xD2D5C9BF;
+    private static final int COLOR_MUTED = 0x958B8178;
     private static final int COLOR_SUCCESS = 0xFF7EEDAA;
     private static final int COLOR_WARNING = 0xFFF4D56A;
     private static final Map<String, String> NAME_CACHE = new LinkedHashMap<>();
@@ -96,6 +98,9 @@ public class SummaryScreen extends Screen
         Layout layout = computeLayout();
         this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
         this.searchField.setMaxLength(64);
+        this.searchField.setDrawsBackground(false);
+        this.searchField.setEditableColor(COLOR_VALUE);
+        this.searchField.setUneditableColor(COLOR_MUTED);
         this.searchField.setChangedListener(value -> refreshFilteredEntries());
         this.addDrawableChild(this.searchField);
 
@@ -128,6 +133,7 @@ public class SummaryScreen extends Screen
         drawGraphCard(context, animatedLayout, mouseX, mouseY, animation);
         drawGoalCard(context, animatedLayout);
         drawBreakdownCard(context, animatedLayout, mouseX, mouseY);
+        drawSearchFieldShell(context);
 
         super.render(context, mouseX, mouseY, delta);
 
@@ -216,7 +222,7 @@ public class SummaryScreen extends Screen
     {
         context.drawText(this.textRenderer, Text.literal(this.heading), layout.contentX, layout.headerY, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal("Beautifully readable session stats with a live pace graph."), layout.contentX + 2, layout.headerY + 40, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("A tighter session overview with the same account-link visual language."), layout.contentX + 2, layout.headerY + 40, COLOR_LABEL, false);
     }
 
     private void drawStatCards(DrawContext context, Layout layout)
@@ -418,13 +424,27 @@ public class SummaryScreen extends Screen
 
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
     {
-        fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, 0x663C556C);
+        fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
         context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y + 9, COLOR_LABEL, false);
         context.drawText(this.textRenderer, Text.literal(value), x + CARD_PADDING, y + 24, COLOR_VALUE, false);
         if (suffix.isBlank() == false)
         {
             context.drawText(this.textRenderer, Text.literal(suffix), x + CARD_PADDING, y + 38, COLOR_MUTED, false);
         }
+    }
+
+    private void drawSearchFieldShell(DrawContext context)
+    {
+        if (this.searchField == null)
+        {
+            return;
+        }
+
+        int x = this.searchField.getX() - 1;
+        int y = this.searchField.getY() - 1;
+        int width = this.searchField.getWidth() + 2;
+        int height = SEARCH_HEIGHT;
+        fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
     }
 
     private void drawScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY)
@@ -437,9 +457,9 @@ public class SummaryScreen extends Screen
 
         int thumbHeight = getScrollbarThumbHeight(height);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
-        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, 0x33203042);
-        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, 0x66506A7F);
-        int thumbColor = this.draggingScrollbar ? 0xFFD8FCFF : isOverScrollbar(mouseX, mouseY) ? 0xFFACF3FF : 0xFF7BDCEA;
+        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, 0x33131218);
+        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
+        int thumbColor = this.draggingScrollbar ? 0xFFF3D8A3 : isOverScrollbar(mouseX, mouseY) ? 0xFFE9C78B : 0xFFB28A57;
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
@@ -447,13 +467,13 @@ public class SummaryScreen extends Screen
     {
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
         int textX = x + (width - this.textRenderer.getWidth(text)) / 2;
-        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_VALUE, false);
+        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_ACCENT, false);
     }
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, fillColor);
-        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_ACCENT_SOFT);
+        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_BORDER_SOFT);
         context.drawBorder(x, y, width, height, borderColor);
     }
 

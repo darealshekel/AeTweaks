@@ -49,9 +49,20 @@ public class SessionData
 
     public void recordMineEvent(long activeElapsedMs)
     {
+        recordMinedAmount(activeElapsedMs, 1L);
+    }
+
+    public void recordMinedAmount(long activeElapsedMs, long amount)
+    {
+        if (amount <= 0L)
+        {
+            return;
+        }
+
         int bucketIndex = (int) Math.max(0L, activeElapsedMs / RATE_BUCKET_DURATION_MS);
         ensureBucketCapacity(bucketIndex);
-        this.miningRateBuckets.set(bucketIndex, this.miningRateBuckets.get(bucketIndex) + 1);
+        long nextValue = (long) this.miningRateBuckets.get(bucketIndex) + amount;
+        this.miningRateBuckets.set(bucketIndex, (int) Math.min(Integer.MAX_VALUE, nextValue));
     }
 
     public String serialise()

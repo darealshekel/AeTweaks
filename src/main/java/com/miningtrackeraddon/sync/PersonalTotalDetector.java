@@ -1,5 +1,7 @@
 package com.miningtrackeraddon.sync;
 
+import com.miningtrackeraddon.MiningTrackerAddon;
+import com.miningtrackeraddon.config.Configs;
 import com.mojang.authlib.GameProfile;
 import java.util.Collection;
 import java.util.List;
@@ -16,7 +18,8 @@ import net.minecraft.scoreboard.ScoreboardObjective;
 
 final class PersonalTotalDetector
 {
-    private static final Pattern NUMBER_PATTERN = Pattern.compile("(?i)(\\d[\\d,._ ]*(?:\\.\\d+)?)\\s*([kmbt])?");
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("(?i)(?<![A-Za-z0-9_])(\\d[\\d,._ ]*(?:\\.\\d+)?)\\s*([kmbt])?(?![A-Za-z0-9_])");
+    private static final Pattern RANK_PREFIX_PATTERN = Pattern.compile("(?i)^\\s*(?:#|\\[)?(\\d{1,3})(?:\\]|[.):-])\\s+([A-Za-z0-9_]{3,16})\\b");
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "my", "personal", "self", "player");
     private static final List<String> DIG_MARKERS = List.of("dig", "dug");
 
@@ -72,19 +75,22 @@ final class PersonalTotalDetector
         }
 
         long rawScore = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
+        String objectiveTitle = clean(objective.getDisplayName().getString());
         String rendered = findRenderedSidebarLineForUser(client, usernameLower);
         long parsedRendered = parseNumber(rendered);
+        long acceptedRawScore = sanitizeDirectScore(rawScore, rendered, objectiveTitle, usernameLower, "sidebar");
         long total = Math.max(rawScore, parsedRendered);
+        total = Math.max(acceptedRawScore, parsedRendered);
         if (total <= 0L)
         {
-            total = Math.max(0L, fallbackFromSidebarEntries(client, usernameLower));
+            total = Math.max(0L, fallbackFromSidebarEntries(client, usernameLower, objectiveTitle));
         }
 
         return new SidebarResult(
                 total,
-                clean(objective.getDisplayName().getString()),
+                objectiveTitle,
                 username,
-                rawScore,
+                acceptedRawScore,
                 rendered
         );
     }
@@ -99,11 +105,12 @@ final class PersonalTotalDetector
         Scoreboard scoreboard = client.world.getScoreboard();
         ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.LIST);
         long rawScore = objective == null ? 0L : readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
+        String objectiveTitle = objective == null ? "no-tab-objective" : clean(objective.getDisplayName().getString());
 
         Collection<PlayerListEntry> playerList = client.getNetworkHandler().getPlayerList();
         if (playerList == null || playerList.isEmpty())
         {
-            return new TabResult(rawScore, objective == null ? "no-tab-objective" : clean(objective.getDisplayName().getString()), username, rawScore, "empty-tab-list");
+            return new TabResult(rawScore, objectiveTitle, username, rawScore, "empty-tab-list");
         }
 
         String rendered = "";
@@ -130,12 +137,13 @@ final class PersonalTotalDetector
             }
         }
 
-        long total = Math.max(rawScore, parsedRendered);
+        long acceptedRawScore = sanitizeDirectScore(rawScore, rendered, objectiveTitle, usernameLower, "tab");
+        long total = Math.max(acceptedRawScore, parsedRendered);
         return new TabResult(
                 total,
-                objective == null ? "no-tab-objective" : clean(objective.getDisplayName().getString()),
+                objectiveTitle,
                 username,
-                rawScore,
+                acceptedRawScore,
                 rendered.isBlank() ? "no-tab-match" : rendered
         );
     }
@@ -225,7 +233,7 @@ final class PersonalTotalDetector
         return "";
     }
 
-    private static long fallbackFromSidebarEntries(MinecraftClient client, String usernameLower)
+    private static long fallbackFromSidebarEntries(MinecraftClient client, String usernameLower, String objectiveTitle)
     {
         List<ScoreboardReader.ObjectiveSnapshot> objectives = ScoreboardReader.readObjectives(client);
         long best = 0L;
@@ -245,10 +253,33 @@ final class PersonalTotalDetector
                     continue;
                 }
                 long parsed = parseNumber(line.cleaned());
+                boolean accepted = false;
+                String reason = "inline-number";
                 if (parsed <= 0L)
                 {
-                    parsed = Math.max(0L, line.scoreValue());
+                    long scoreFallback = Math.max(0L, line.scoreValue());
+                    if (isLikelyRankOnlyLine(line.cleaned(), usernameLower, scoreFallback))
+                    {
+                        parsed = 0L;
+                        reason = "rejected-rank-like-fallback";
+                    }
+                    else if (scoreFallback >= 1_000L || hasDigMarkers(line.cleaned()) || hasDigMarkers(objectiveTitle))
+                    {
+                        parsed = scoreFallback;
+                        reason = "score-fallback";
+                        accepted = true;
+                    }
+                    else
+                    {
+                        parsed = 0L;
+                        reason = "rejected-ambiguous-score-fallback";
+                    }
                 }
+                else
+                {
+                    accepted = true;
+                }
+                debugCandidate("sidebar-fallback", line.cleaned(), objectiveTitle, line.scoreValue(), parsed, accepted, reason);
                 if (parsed > best)
                 {
                     best = parsed;
@@ -256,6 +287,92 @@ final class PersonalTotalDetector
             }
         }
         return best;
+    }
+
+    private static long sanitizeDirectScore(long rawScore, String rendered, String objectiveTitle, String usernameLower, String detector)
+    {
+        if (rawScore <= 0L)
+        {
+            return 0L;
+        }
+
+        long parsedRendered = parseNumber(rendered);
+        boolean hasDigitsInRendered = parsedRendered > 0L;
+        boolean hasDigContext = hasDigMarkers(rendered) || hasDigMarkers(objectiveTitle);
+        boolean rankLike = isLikelyRankOnlyLine(rendered, usernameLower, rawScore);
+        boolean accepted = false;
+        String reason = "rejected-ambiguous-direct-score";
+
+        if (rankLike)
+        {
+            accepted = false;
+            reason = "rejected-rank-like-line";
+        }
+        else if (hasDigitsInRendered)
+        {
+            accepted = true;
+            reason = "accepted-rendered-number";
+        }
+        else if (hasDigContext && rawScore >= 1_000L)
+        {
+            accepted = true;
+            reason = "accepted-high-direct-score";
+        }
+
+        debugCandidate(detector + "-direct", rendered, objectiveTitle, rawScore, accepted ? rawScore : 0L, accepted, reason);
+        return accepted ? rawScore : 0L;
+    }
+
+    private static boolean hasDigMarkers(String value)
+    {
+        String lower = clean(value).toLowerCase(Locale.ROOT);
+        return DIG_MARKERS.stream().anyMatch(lower::contains);
+    }
+
+    private static boolean isLikelyRankOnlyLine(String rendered, String usernameLower, long numericValue)
+    {
+        String cleaned = clean(rendered);
+        if (cleaned.isBlank())
+        {
+            return false;
+        }
+
+        String cleanedLower = cleaned.toLowerCase(Locale.ROOT);
+        if (cleanedLower.equals(usernameLower) && numericValue > 0L && numericValue <= 100L)
+        {
+            return true;
+        }
+
+        Matcher rankMatcher = RANK_PREFIX_PATTERN.matcher(cleaned);
+        if (rankMatcher.find())
+        {
+            String rankedUser = rankMatcher.group(2) == null ? "" : rankMatcher.group(2).toLowerCase(Locale.ROOT);
+            if (rankedUser.equals(usernameLower))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void debugCandidate(String detector, String rendered, String objectiveTitle, long rawScore, long parsedValue, boolean accepted, String reason)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        {
+            return;
+        }
+
+        MiningTrackerAddon.LOGGER.info(
+                "[AET_DEBUG] personal-total-candidate detector={} objective={} rendered={} rawScore={} parsed={} decision={} reason={}",
+                detector,
+                clean(objectiveTitle),
+                clean(rendered),
+                rawScore,
+                parsedValue,
+                accepted ? "accepted" : "rejected",
+                reason
+        );
     }
 
     private static String clean(String value)

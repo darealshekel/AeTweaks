@@ -25,6 +25,7 @@ import net.minecraft.client.MinecraftClient;
 
 public final class CloudSyncManager
 {
+    private static final String LOG_PREFIX = "[AET_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
     private static final long LIVE_BLOCK_SYNC_INTERVAL_MS = 3_000L;
@@ -110,6 +111,44 @@ public final class CloudSyncManager
 
     public static void onBlockMined(long now)
     {
+        MinecraftClient client = MinecraftClient.getInstance();
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        String sourceKey = ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo);
+        String sourceName = ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
+        boolean autoSyncEnabled = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue();
+        boolean hasEndpoint = Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
+        boolean hasContext = client != null && client.player != null && client.world != null;
+        boolean loggedIn = hasContext && client.getSession() != null && client.getSession().getUsername().isBlank() == false;
+        String playerUuid = hasContext ? client.player.getUuidAsString() : "";
+        String playerName = hasContext ? resolveUsername(client) : "";
+        long totalMined = MiningStats.getTotalMined();
+        long sessionMined = MiningStats.getSessionBlocksMined();
+        boolean hasSyncSecret = Configs.cloudSyncSecret != null && Configs.cloudSyncSecret.isBlank() == false;
+        boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
+        boolean hasSessionToken = hasSessionToken(client);
+
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+        {
+            MiningTrackerAddon.LOGGER.info(
+                    "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} playerUuid={} playerName={} sourceSlug={} sourceName={} totalMined={} sessionMined={} targetUrl={}",
+                    LOG_PREFIX,
+                    autoSyncEnabled,
+                    loggedIn,
+                    hasContext,
+                    hasEndpoint,
+                    hasSyncSecret,
+                    hasLinkedIdentity,
+                    hasSessionToken,
+                    playerUuid,
+                    playerName,
+                    sourceKey,
+                    sourceName,
+                    totalMined,
+                    sessionMined,
+                    Configs.cloudSyncEndpoint
+            );
+        }
+
         if (canSync() == false || hasLiveContext() == false)
         {
             return;
@@ -388,6 +427,7 @@ public final class CloudSyncManager
         payload.add("projects", buildProjects());
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal, prediction));
+        payload.add("session_state", buildSessionState());
 
         if (session != null && sessionStatus != null)
         {
@@ -397,6 +437,16 @@ public final class CloudSyncManager
         debugPayloadSource(worldInfo, payload);
 
         return payload;
+    }
+
+    private static JsonObject buildSessionState()
+    {
+        JsonObject state = new JsonObject();
+        state.addProperty("session_active", MiningStats.isSessionActive());
+        state.addProperty("session_paused", MiningStats.isSessionPaused());
+        state.addProperty("session_total_blocks", MiningStats.getSessionBlocksMined());
+        state.addProperty("session_duration_seconds", Math.max(0L, MiningStats.getSessionDurationMs() / 1000L));
+        return state;
     }
 
     private static JsonObject buildLifetimeTotals()
@@ -418,7 +468,7 @@ public final class CloudSyncManager
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
-        totals.addProperty("host", worldStats.host == null || worldStats.host.isBlank() ? null : worldStats.host);
+        totals.addProperty("host", (String) null);
         totals.addProperty("total_blocks", worldStats.totalBlocks);
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
         return totals;
@@ -451,10 +501,12 @@ public final class CloudSyncManager
         leaderboard.addProperty("captured_at", toIso(latestLeaderboardSnapshot.capturedAtMs()));
         leaderboard.addProperty("source_type", "scoreboard");
 
+        long snapshotTotalDigs = Math.max(0L, latestLeaderboardSnapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(AeternumLeaderboardEntry::digs).sum();
-        if (filteredTotalDigs > 0L)
+        long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
+        if (payloadTotalDigs > 0L)
         {
-            leaderboard.addProperty("total_digs", filteredTotalDigs);
+            leaderboard.addProperty("total_digs", payloadTotalDigs);
         }
 
         JsonArray entries = new JsonArray();
@@ -529,7 +581,8 @@ public final class CloudSyncManager
                 worldInfo != null ? worldInfo.displayName() : "",
                 worldInfo));
         evidence.addProperty("source_kind", worldInfo.kind());
-        evidence.addProperty("source_host", worldInfo.host().isBlank() ? null : worldInfo.host());
+        evidence.addProperty("source_host", (String) null);
+        evidence.addProperty("icon_url", scan.iconUrl());
         evidence.addProperty("scoreboard_title", scan.scoreboardTitle());
         evidence.addProperty("total_digs", scan.totalDigs());
         evidence.addProperty("player_total_digs", scan.playerTotalDigs());
@@ -548,7 +601,7 @@ public final class CloudSyncManager
         world.addProperty("key", worldInfo.id());
         world.addProperty("display_name", worldInfo.displayName());
         world.addProperty("kind", normaliseWorldKind(worldInfo.kind()));
-        world.addProperty("host", worldInfo.host().isBlank() ? null : worldInfo.host());
+        world.addProperty("host", (String) null);
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         return world;
@@ -690,6 +743,24 @@ public final class CloudSyncManager
         }
 
         return "Player";
+    }
+
+    private static boolean hasSessionToken(MinecraftClient client)
+    {
+        if (client == null || client.getSession() == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            String token = client.getSession().getAccessToken();
+            return token != null && token.isBlank() == false;
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
     }
 
     private static void maybeBootstrapFromLeaderboardSnapshot(MinecraftClient client, long now)

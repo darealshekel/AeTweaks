@@ -23,6 +23,7 @@ public class ClientTickHandler implements IClientTickHandler
         {
             String worldName = WorldLoadListener.consumePendingSummaryName();
             mc.setScreen(new SummaryScreen(pending, mc.currentScreen, worldName, "Session Summary"));
+            return;
         }
     }
 }

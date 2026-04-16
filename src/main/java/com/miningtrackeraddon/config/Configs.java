@@ -17,6 +17,7 @@ import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigHandler;
 import fi.dy.masa.malilib.config.IConfigOptionListEntry;
 import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
+import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigColor;
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
@@ -29,9 +30,14 @@ public class Configs implements IConfigHandler
 {
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.MOD_ID + ".json";
+    private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://xshbqnihopsznsnjqjji.supabase.co/functions/v1/aetweaks-sync";
 
     public static class Generic
     {
+        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable AeTweaks website sync.");
+        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
+        public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
+        public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
         public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
@@ -47,6 +53,10 @@ public class Configs implements IConfigHandler
         public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
+                WEBSITE_SYNC_ENABLED,
+                TOTAL_DIGS_SYNC_ENABLED,
+                WEBSITE_SYNC_DEBUG,
+                ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 NOTIFICATION_THRESHOLDS,
                 SOUND_ALERT_THRESHOLD,
@@ -66,10 +76,20 @@ public class Configs implements IConfigHandler
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();
     public static String activeProjectId = "";
+    public static String cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
+    public static String cloudSyncSecret = "";
+    public static String cloudClientId = "";
+    public static String websiteLinkedMinecraftUuid = "";
+    public static String websiteLinkedMinecraftUsername = "";
+    public static long websiteLinkedAtMs = 0L;
+    public static long totalBlocksMined = 0L;
     public static final List<ProjectEntry> PROJECTS = new ArrayList<>();
+    public static final List<WorldStatsEntry> WORLD_STATS = new ArrayList<>();
 
     public static void onConfigLoaded()
     {
+        boolean syncIdentityGenerated = false;
+
         if (PROJECTS.isEmpty())
         {
             PROJECTS.add(ProjectEntry.create("Main Project", 0L));
@@ -95,6 +115,20 @@ public class Configs implements IConfigHandler
 
         dailyProgress = Math.max(0L, dailyProgress);
         dailyGoalLastResetMs = Math.max(0L, dailyGoalLastResetMs);
+        totalBlocksMined = Math.max(0L, totalBlocksMined);
+        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank())
+        {
+            cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
+        }
+        cloudSyncSecret = cloudSyncSecret == null ? "" : cloudSyncSecret.trim();
+        if (cloudClientId == null || cloudClientId.isBlank())
+        {
+            cloudClientId = "aet_" + UUID.randomUUID();
+            syncIdentityGenerated = true;
+        }
+        websiteLinkedMinecraftUuid = websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid.trim().toLowerCase();
+        websiteLinkedMinecraftUsername = websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername.trim();
+        websiteLinkedAtMs = Math.max(0L, websiteLinkedAtMs);
 
         List<Integer> thresholds = getNotificationThresholds();
         thresholds.removeIf(value -> value <= 0 || value > 100);
@@ -106,6 +140,11 @@ public class Configs implements IConfigHandler
         Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
+
+        if (syncIdentityGenerated)
+        {
+            saveToFile();
+        }
     }
 
     public static void loadFromFile()
@@ -266,7 +305,17 @@ public class Configs implements IConfigHandler
             if (state.has("dailyProgress")) dailyProgress = state.get("dailyProgress").getAsLong();
             if (state.has("dailyGoalLastResetMs")) dailyGoalLastResetMs = state.get("dailyGoalLastResetMs").getAsLong();
             if (state.has("activeProjectId")) activeProjectId = state.get("activeProjectId").getAsString();
+            if (state.has("cloudSyncEnabled")) Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(state.get("cloudSyncEnabled").getAsBoolean());
+            if (state.has("totalDigsSyncEnabled")) Generic.TOTAL_DIGS_SYNC_ENABLED.setBooleanValue(state.get("totalDigsSyncEnabled").getAsBoolean());
+            if (state.has("cloudSyncEndpoint")) cloudSyncEndpoint = state.get("cloudSyncEndpoint").getAsString();
+            if (state.has("cloudSyncSecret")) cloudSyncSecret = state.get("cloudSyncSecret").getAsString();
+            if (state.has("cloudClientId")) cloudClientId = state.get("cloudClientId").getAsString();
+            if (state.has("websiteLinkedMinecraftUuid")) websiteLinkedMinecraftUuid = state.get("websiteLinkedMinecraftUuid").getAsString();
+            if (state.has("websiteLinkedMinecraftUsername")) websiteLinkedMinecraftUsername = state.get("websiteLinkedMinecraftUsername").getAsString();
+            if (state.has("websiteLinkedAtMs")) websiteLinkedAtMs = state.get("websiteLinkedAtMs").getAsLong();
+            if (state.has("totalBlocksMined")) totalBlocksMined = state.get("totalBlocksMined").getAsLong();
             PROJECTS.clear();
+            WORLD_STATS.clear();
             if (state.has("projects") && state.get("projects").isJsonArray())
             {
                 for (JsonElement element : state.getAsJsonArray("projects"))
@@ -282,6 +331,24 @@ public class Configs implements IConfigHandler
                     }
                 }
             }
+            if (state.has("worldStats") && state.get("worldStats").isJsonArray())
+            {
+                for (JsonElement element : state.getAsJsonArray("worldStats"))
+                {
+                    if (element.isJsonObject())
+                    {
+                        JsonObject object = element.getAsJsonObject();
+                        WorldStatsEntry entry = new WorldStatsEntry();
+                        entry.worldId = object.has("worldId") ? object.get("worldId").getAsString() : "default";
+                        entry.displayName = object.has("displayName") ? object.get("displayName").getAsString() : entry.worldId;
+                        entry.kind = object.has("kind") ? object.get("kind").getAsString() : "unknown";
+                        entry.host = object.has("host") ? object.get("host").getAsString() : "";
+                        entry.totalBlocks = object.has("totalBlocks") ? object.get("totalBlocks").getAsLong() : 0L;
+                        entry.lastSeenAt = object.has("lastSeenAt") ? object.get("lastSeenAt").getAsLong() : 0L;
+                        WORLD_STATS.add(entry);
+                    }
+                }
+            }
         }
     }
 
@@ -291,6 +358,15 @@ public class Configs implements IConfigHandler
         state.addProperty("dailyProgress", dailyProgress);
         state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
         state.addProperty("activeProjectId", activeProjectId == null ? "" : activeProjectId);
+        state.addProperty("cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue());
+        state.addProperty("totalDigsSyncEnabled", Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue());
+        state.addProperty("cloudSyncEndpoint", cloudSyncEndpoint == null ? DEFAULT_CLOUD_SYNC_ENDPOINT : cloudSyncEndpoint);
+        state.addProperty("cloudSyncSecret", cloudSyncSecret == null ? "" : cloudSyncSecret);
+        state.addProperty("cloudClientId", cloudClientId == null ? "" : cloudClientId);
+        state.addProperty("websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid);
+        state.addProperty("websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername);
+        state.addProperty("websiteLinkedAtMs", websiteLinkedAtMs);
+        state.addProperty("totalBlocksMined", totalBlocksMined);
 
         JsonArray projects = new JsonArray();
         for (ProjectEntry project : PROJECTS)
@@ -302,7 +378,44 @@ public class Configs implements IConfigHandler
             projects.add(object);
         }
         state.add("projects", projects);
+
+        JsonArray worldStats = new JsonArray();
+        for (WorldStatsEntry entry : WORLD_STATS)
+        {
+            JsonObject object = new JsonObject();
+            object.addProperty("worldId", entry.worldId);
+            object.addProperty("displayName", entry.displayName);
+            object.addProperty("kind", entry.kind);
+            object.addProperty("host", entry.host);
+            object.addProperty("totalBlocks", entry.totalBlocks);
+            object.addProperty("lastSeenAt", entry.lastSeenAt);
+            worldStats.add(object);
+        }
+        state.add("worldStats", worldStats);
         root.add("State", state);
+    }
+
+    public static WorldStatsEntry getOrCreateWorldStats(String worldId, String displayName, String kind, String host)
+    {
+        String normalizedWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        for (WorldStatsEntry entry : WORLD_STATS)
+        {
+            if (normalizedWorldId.equals(entry.worldId))
+            {
+                entry.displayName = displayName == null || displayName.isBlank() ? entry.displayName : displayName;
+                entry.kind = kind == null || kind.isBlank() ? entry.kind : kind;
+                entry.host = host == null ? "" : host;
+                return entry;
+            }
+        }
+
+        WorldStatsEntry entry = new WorldStatsEntry();
+        entry.worldId = normalizedWorldId;
+        entry.displayName = displayName == null || displayName.isBlank() ? normalizedWorldId : displayName;
+        entry.kind = kind == null || kind.isBlank() ? "unknown" : kind;
+        entry.host = host == null ? "" : host;
+        WORLD_STATS.add(entry);
+        return entry;
     }
 
     private static File getPrimaryConfigFile()
@@ -347,6 +460,16 @@ public class Configs implements IConfigHandler
             entry.progress = progress;
             return entry;
         }
+    }
+
+    public static class WorldStatsEntry
+    {
+        public String worldId;
+        public String displayName;
+        public String kind;
+        public String host;
+        public long totalBlocks;
+        public long lastSeenAt;
     }
 
     public enum BlockEspColorMode implements IConfigOptionListEntry

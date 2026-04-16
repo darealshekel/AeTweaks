@@ -32,21 +32,23 @@ public class SessionHistoryScreen extends Screen
     private static final int SBW = 8;
     private static final int SBM = 18;
     private static final int BREAKDOWN_HEIGHT = 108;
-    private static final int OVERLAY = 0xB8121620;
-    private static final int PANEL = 0xB4171F2D;
-    private static final int CARD = 0x99202A3B;
-    private static final int SOFT = 0x7F182130;
-    private static final int BORDER = 0xAA42657D;
-    private static final int ACCENT = 0xFF67E7FF;
-    private static final int ACCENT_SOFT = 0x5540D7FF;
-    private static final int TEXT = 0xFFF5FBFF;
-    private static final int LABEL = 0xB6C7D6E7;
-    private static final int MUTED = 0x8EA5B9CC;
-    private static final int ROW_SEL = 0x5A28516B;
-    private static final int ROW_HOVER = 0x2A203748;
-    private static final int ROW_ALT = 0x140E1824;
-    private static final int GRAPH_FILL = 0xAA5CE1FF;
-    private static final int GRAPH_GRID = 0x223C5264;
+    private static final int OVERLAY = 0xC20B0D12;
+    private static final int PANEL = 0xD1171A20;
+    private static final int CARD = 0xB11B1F27;
+    private static final int SOFT = 0x8F14181F;
+    private static final int INSET = 0xA111141A;
+    private static final int BORDER = 0xAA4A3538;
+    private static final int BORDER_SOFT = 0x66443638;
+    private static final int ACCENT = 0xFFE3BD78;
+    private static final int ACCENT_SOFT = 0x553A2411;
+    private static final int TEXT = 0xFFF5EEE7;
+    private static final int LABEL = 0xD2D5C9BF;
+    private static final int MUTED = 0x958B8178;
+    private static final int ROW_SEL = 0x5534221A;
+    private static final int ROW_HOVER = 0x33261A16;
+    private static final int ROW_ALT = 0x16100F12;
+    private static final int GRAPH_FILL = 0xCCB75E3A;
+    private static final int GRAPH_GRID = 0x22372628;
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd  HH:mm");
 
     private final Screen parent;
@@ -102,7 +104,7 @@ public class SessionHistoryScreen extends Screen
         card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
         context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
         pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
-        context.drawText(this.textRenderer, Text.literal("Browse past sessions with the same clean summary style."), l.contentX + 2, l.headerY + 40, LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Review previous runs with the same warm card system used across the mod."), l.contentX + 2, l.headerY + 40, LABEL, false);
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
@@ -188,8 +190,8 @@ public class SessionHistoryScreen extends Screen
         int width = l.leftWidth - C * 2;
         int height = l.contentHeight - 56;
         int viewportWidth = width - SBW - 6;
-        context.fill(x, y, x + width, y + height, 0x22131B27);
-        context.drawBorder(x, y, width, height, 0x663A5368);
+        context.fill(x, y, x + width, y + height, INSET);
+        context.drawBorder(x, y, width, height, BORDER_SOFT);
         if (this.sessions.isEmpty()) { context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Mine some blocks and your history will show up here"), x + width / 2, y + height / 2 - 4, MUTED); return; }
         int visibleRows = getVisibleRows(l);
         this.listScroll = Math.max(0, Math.min(this.listScroll, Math.max(0, this.sessions.size() - visibleRows)));
@@ -201,7 +203,7 @@ public class SessionHistoryScreen extends Screen
             SessionData session = this.sessions.get(index);
             int rowY = drawY + row * RH;
             boolean hovered = mouseX >= x && mouseX <= x + viewportWidth && mouseY >= rowY && mouseY <= rowY + RH - 4;
-            int rowColor = index == this.selectedIndex ? ROW_SEL : hovered ? ROW_HOVER : ((row & 1) == 0 ? ROW_ALT : 0x0F111823);
+            int rowColor = index == this.selectedIndex ? ROW_SEL : hovered ? ROW_HOVER : ((row & 1) == 0 ? ROW_ALT : 0x120E1116);
             context.fill(x + 4, rowY, x + viewportWidth - 4, rowY + RH - 4, rowColor);
             context.drawText(this.textRenderer, Text.literal("#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs))), x + 12, rowY + 6, TEXT, false);
             context.drawText(this.textRenderer, Text.literal(UiFormat.formatCompact(session.totalBlocks) + " blocks  |  " + session.getDurationString() + "  |  " + UiFormat.formatCompact(session.getAverageBlocksPerHour()) + "/hr"), x + 12, rowY + 19, MUTED, false);
@@ -230,10 +232,10 @@ public class SessionHistoryScreen extends Screen
         stat(context, vx, statY + 56, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
         stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Peak Rate", UiFormat.formatCompact(session.peakBlocksPerHour), "blocks/hr");
         int graphY = statY + 118;
-        card(context, vx, graphY, vw, 92, SOFT, 0x663C556C);
+        card(context, vx, graphY, vw, 92, SOFT, BORDER_SOFT);
         context.drawText(this.textRenderer, Text.literal("Session Pace"), vx + 10, graphY + 8, TEXT, false);
         context.drawText(this.textRenderer, Text.literal("Blocks per hour across the session"), vx + 10, graphY + 20, MUTED, false);
-        drawGraph(context, vx + 10, graphY + 34, vw - 20, 50, session);
+        drawGraph(context, vx + 10, graphY + 34, vw - 20, 50, session, mouseX, mouseY);
         int infoY = graphY + 102;
         row(context, vx, vx + vw, infoY, "Best Streak", session.bestStreakSeconds + "s");
         row(context, vx, vx + vw, infoY + 16, "Top Block", getTopBlock(session));
@@ -245,7 +247,7 @@ public class SessionHistoryScreen extends Screen
     {
         context.drawText(this.textRenderer, Text.literal("Block Breakdown"), x, y, TEXT, false);
         int cardY = y + 14;
-        card(context, x, cardY, width, BREAKDOWN_HEIGHT, SOFT, 0x663C556C);
+        card(context, x, cardY, width, BREAKDOWN_HEIGHT, SOFT, BORDER_SOFT);
         List<Map.Entry<String, Long>> entries = new ArrayList<>(session.blockBreakdown.entrySet());
         entries.sort((left, right) -> Long.compare(right.getValue(), left.getValue()));
         int listX = x + 8;
@@ -280,14 +282,109 @@ public class SessionHistoryScreen extends Screen
         }
     }
 
-    private void drawGraph(DrawContext c, int x, int y, int w, int h, SessionData s){ c.fill(x,y,x+w,y+h,0x1C0B121C); for(int i=0;i<4;i++){ int ly=y+(h*i)/4; c.fill(x,ly,x+w,ly+1,GRAPH_GRID);} if(s.miningRateBuckets.isEmpty()){ c.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No graph data saved for this run"), x+w/2, y+h/2-4, MUTED); return; } int cols=Math.max(1,Math.min(w/4,s.miningRateBuckets.size())); double[] rates=new double[cols]; double max=60d; for(int col=0;col<cols;col++){ int start=(int)Math.floor((col*s.miningRateBuckets.size())/(double)cols), end=(int)Math.floor(((col+1)*s.miningRateBuckets.size())/(double)cols); if(end<=start) end=Math.min(s.miningRateBuckets.size(),start+1); double total=0d; int count=0; for(int i=start;i<end;i++){ total+=s.miningRateBuckets.get(i)*60d; count++; } rates[col]=count<=0?0d:total/count; max=Math.max(max,rates[col]); } int bottom=y+h-8, usable=Math.max(12,h-14); float[] py=new float[cols]; int[] px=new int[cols]; for(int col=0;col<cols;col++){ float n=(float)(rates[col]/max); py[col]=bottom-n*usable; px[col]=x+Math.round((col/(float)Math.max(1,cols-1))*(w-1)); } for(int col=0;col<cols-1;col++){ float prev=col>0?py[col-1]:py[col], next=col+2<cols?py[col+2]:py[col+1]; curve(c,px[col],py[col],px[col+1],py[col+1],prev,next);} c.drawText(this.textRenderer, Text.literal(UiFormat.formatCompact(Math.round(max))+"/hr"), x+4, y+4, LABEL, false); }
+    private void drawGraph(DrawContext c, int x, int y, int w, int h, SessionData s, int mouseX, int mouseY)
+    {
+        c.fill(x, y, x + w, y + h, INSET);
+        for (int i = 0; i < 4; i++)
+        {
+            int ly = y + (h * i) / 4;
+            c.fill(x, ly, x + w, ly + 1, GRAPH_GRID);
+        }
+
+        if (s.miningRateBuckets.isEmpty())
+        {
+            c.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No graph data saved for this run"), x + w / 2, y + h / 2 - 4, MUTED);
+            return;
+        }
+
+        int cols = Math.max(1, Math.min(w / 4, s.miningRateBuckets.size()));
+        double[] rates = new double[cols];
+        double max = 60d;
+        for (int col = 0; col < cols; col++)
+        {
+            int start = (int) Math.floor((col * s.miningRateBuckets.size()) / (double) cols);
+            int end = (int) Math.floor(((col + 1) * s.miningRateBuckets.size()) / (double) cols);
+            if (end <= start)
+            {
+                end = Math.min(s.miningRateBuckets.size(), start + 1);
+            }
+
+            double total = 0d;
+            int count = 0;
+            for (int i = start; i < end; i++)
+            {
+                total += s.miningRateBuckets.get(i) * 60d;
+                count++;
+            }
+
+            rates[col] = count <= 0 ? 0d : total / count;
+            max = Math.max(max, rates[col]);
+        }
+
+        int bottom = y + h - 8;
+        int usable = Math.max(12, h - 14);
+        float[] py = new float[cols];
+        int[] px = new int[cols];
+        for (int col = 0; col < cols; col++)
+        {
+            float n = (float) (rates[col] / max);
+            py[col] = bottom - n * usable;
+            px[col] = x + Math.round((col / (float) Math.max(1, cols - 1)) * (w - 1));
+        }
+
+        for (int col = 0; col < cols - 1; col++)
+        {
+            float prev = col > 0 ? py[col - 1] : py[col];
+            float next = col + 2 < cols ? py[col + 2] : py[col + 1];
+            curve(c, px[col], py[col], px[col + 1], py[col + 1], prev, next);
+        }
+
+        int hoveredColumn = -1;
+        if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h)
+        {
+            int bestDistance = Integer.MAX_VALUE;
+            for (int col = 0; col < cols; col++)
+            {
+                int distance = Math.abs(mouseX - px[col]);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    hoveredColumn = col;
+                }
+            }
+        }
+
+        if (hoveredColumn >= 0)
+        {
+            int markerX = px[hoveredColumn];
+            int markerY = Math.round(py[hoveredColumn]);
+            c.fill(markerX - 3, markerY - 3, markerX + 4, markerY + 4, TEXT);
+            c.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, ACCENT);
+
+            String hoverText = UiFormat.formatCompact(Math.round(rates[hoveredColumn])) + " blocks/hr";
+            int tooltipWidth = this.textRenderer.getWidth(hoverText) + 10;
+            int tooltipX = Math.max(x + 4, Math.min(markerX - tooltipWidth / 2, x + w - tooltipWidth - 4));
+            int tooltipY = Math.max(y + 4, markerY - 16);
+            card(c, tooltipX, tooltipY, tooltipWidth, 14, CARD, BORDER_SOFT);
+            c.drawText(this.textRenderer, Text.literal(hoverText), tooltipX + 5, tooltipY + 3, TEXT, false);
+        }
+
+        c.drawText(this.textRenderer, Text.literal(UiFormat.formatCompact(Math.round(max)) + "/hr"), x + 4, y + 4, LABEL, false);
+        c.drawText(this.textRenderer, Text.literal("0"), x + 4, bottom - 8, MUTED, false);
+
+        String startLabel = "0m";
+        String endLabel = formatClock(Math.max(1, s.getDurationMs()));
+        int endWidth = this.textRenderer.getWidth(endLabel);
+        c.drawText(this.textRenderer, Text.literal(startLabel), x, y + h - 10, MUTED, false);
+        c.drawText(this.textRenderer, Text.literal(endLabel), x + w - endWidth, y + h - 10, MUTED, false);
+    }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ c.drawText(this.textRenderer, Text.literal(label), lx, y, LABEL, false); int w=this.textRenderer.getWidth(value); c.drawText(this.textRenderer, Text.literal(value), rx-w, y, TEXT, false); }
-    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ card(c,x,y,w,h,SOFT,0x663C556C); c.drawText(this.textRenderer, Text.literal(l), x+C, y+9, LABEL, false); c.drawText(this.textRenderer, Text.literal(v), x+C, y+24, TEXT, false); c.drawText(this.textRenderer, Text.literal(s), x+C, y+38, MUTED, false); }
-    private void pill(DrawContext c,int x,int y,int w,int h,String t){ card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(t), x+(w-this.textRenderer.getWidth(t))/2, y+4, TEXT, false); }
-    private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ c.fill(x,y,x+w,y+h,fill); c.fill(x+1,y+1,x+w-1,y+2,ACCENT_SOFT); c.drawBorder(x,y,w,h,border); }
-    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,0x33203042); c.drawBorder(x,y,SBW,h,0x66506A7F); int col=this.draggingList?0xFFD8FCFF:isOverListBar(mx,my)?0xFFACF3FF:0xFF7BDCEA; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
+    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ card(c,x,y,w,h,SOFT,BORDER_SOFT); c.drawText(this.textRenderer, Text.literal(l), x+C, y+9, LABEL, false); c.drawText(this.textRenderer, Text.literal(v), x+C, y+24, TEXT, false); c.drawText(this.textRenderer, Text.literal(s), x+C, y+38, MUTED, false); }
+    private void pill(DrawContext c,int x,int y,int w,int h,String t){ card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(t), x+(w-this.textRenderer.getWidth(t))/2, y+4, ACCENT, false); }
+    private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ c.fill(x,y,x+w,y+h,fill); c.fill(x+1,y+1,x+w-1,y+2,BORDER_SOFT); c.drawBorder(x,y,w,h,border); }
+    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,0x33131218); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?0xFFF3D8A3:isOverListBar(mx,my)?0xFFE9C78B:0xFFB28A57; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
-    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,0x33203042); c.drawBorder(x,y,SBW,h,0x66506A7F); c.fill(x+1,y+off,x+SBW-1,y+off+th,active?0xFFD8FCFF:0xFF7BDCEA); }
+    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,0x33131218); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,active?0xFFF3D8A3:0xFFB28A57); }
     private int getVisibleRows(Layout l){ return Math.max(1, (l.contentHeight - 68) / RH); }
     private boolean isInList(double mx,double my){ Layout l=layout(); return mx>=l.contentX+C&&mx<=l.contentX+l.leftWidth-C&&my>=l.contentY+44&&my<=l.contentY+l.contentHeight-12; }
     private boolean isInDetail(double mx,double my){ Layout l=layout(); return mx>=l.detailX+C&&mx<=l.detailX+l.detailWidth-C&&my>=l.contentY+28&&my<=l.contentY+l.contentHeight-12; }

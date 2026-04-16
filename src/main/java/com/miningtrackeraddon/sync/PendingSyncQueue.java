@@ -1,6 +1,7 @@
 package com.miningtrackeraddon.sync;
 
 import com.google.gson.JsonObject;
+import com.miningtrackeraddon.MiningTrackerAddon;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -15,6 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class PendingSyncQueue
 {
+    private static final String LOG_PREFIX = "[AET_SYNC]";
+
     public interface Sender
     {
         SyncSendResult send(QueuedSyncItem item);
@@ -126,6 +129,9 @@ public final class PendingSyncQueue
     {
         if (this.flushScheduled.compareAndSet(false, true) == false)
         {
+            MiningTrackerAddon.LOGGER.info("{} send-skipped-flush-guard reason={} detail=flush_already_scheduled_or_active",
+                    LOG_PREFIX,
+                    reason == null || reason.isBlank() ? "manual" : reason);
             return;
         }
 
@@ -179,6 +185,7 @@ public final class PendingSyncQueue
                 QueuedSyncItem item = nextDueItem();
                 if (item == null)
                 {
+                    logNoDueItem(reason);
                     return;
                 }
 
@@ -203,6 +210,9 @@ public final class PendingSyncQueue
             QueuedSyncItem current = findById(attemptedItem.id);
             if (current == null)
             {
+                MiningTrackerAddon.LOGGER.warn("{} send-skipped-item-invalid id={} reason=item_missing_during_handle",
+                        LOG_PREFIX,
+                        attemptedItem.id);
                 return;
             }
 
@@ -302,5 +312,32 @@ public final class PendingSyncQueue
         }
 
         return Instant.ofEpochMilli(timestampMs).toString();
+    }
+
+    private void logNoDueItem(String reason)
+    {
+        synchronized (this.lock)
+        {
+            if (this.items.isEmpty())
+            {
+                MiningTrackerAddon.LOGGER.info("{} send-skipped-queue-empty reason={}", LOG_PREFIX, reason);
+                return;
+            }
+
+            long now = System.currentTimeMillis();
+            long nextRetryAt = this.items.stream()
+                    .mapToLong(item -> item.nextRetryAtMs)
+                    .min()
+                    .orElse(0L);
+            long waitMs = Math.max(0L, nextRetryAt - now);
+            MiningTrackerAddon.LOGGER.info(
+                    "{} send-skipped-item-not-due reason={} queueSize={} nextRetryAt={} waitMs={}",
+                    LOG_PREFIX,
+                    reason,
+                    this.items.size(),
+                    formatInstant(nextRetryAt),
+                    waitMs
+            );
+        }
     }
 }
