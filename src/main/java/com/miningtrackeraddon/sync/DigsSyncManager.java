@@ -5,6 +5,7 @@ import com.miningtrackeraddon.Reference;
 import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.tracker.MiningValidationTracker;
 import java.time.Instant;
 import java.util.Locale;
 import net.minecraft.client.MinecraftClient;
@@ -237,6 +238,13 @@ public final class DigsSyncManager
         digs.addProperty("timestamp", Instant.ofEpochMilli(model.capturedAtMs()).toString());
         digs.addProperty("objective_title", model.objectiveTitle());
         payload.add("player_total_digs", digs);
+        payload.add("validation", MiningValidationTracker.buildPayload(
+                model.username(),
+                client != null && client.player != null ? client.player.getUuidAsString() : "",
+                worldInfo,
+                MiningStats.getSessionBlocksMined(),
+                MiningStats.getCurrentSession().startTimeMs,
+                MiningStats.getCurrentSession().endTimeMs));
 
         return payload;
     }

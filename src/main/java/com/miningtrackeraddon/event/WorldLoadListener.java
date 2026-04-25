@@ -76,7 +76,7 @@ public class WorldLoadListener implements IWorldLoadListener
 
         WorldSessionContext.WorldInfo info = WorldSessionContext.getCurrentWorldInfo();
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host={}",
+                "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host={}",
                 previousWorldId,
                 nextWorldId,
                 info.displayName(),

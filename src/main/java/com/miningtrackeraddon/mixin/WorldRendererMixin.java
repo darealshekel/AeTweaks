@@ -34,7 +34,7 @@ public abstract class WorldRendererMixin
                                              BlockPos pos, BlockState state, int color);
 
     @Inject(method = "renderTargetBlockOutline", at = @At("HEAD"), cancellable = true)
-    private void aetweaks$renderCustomBlockEspOutline(Camera camera,
+    private void mmm$renderCustomBlockEspOutline(Camera camera,
                                                       VertexConsumerProvider.Immediate vertexConsumers,
                                                       MatrixStack matrices,
                                                       boolean translucent,

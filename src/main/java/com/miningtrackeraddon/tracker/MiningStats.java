@@ -134,6 +134,7 @@ public final class MiningStats
 
         if (sessionActive && sessionPaused == false)
         {
+            MiningValidationTracker.onBlockMined(pos, previousState, now);
             MINE_EVENTS.addLast(now);
             PACE_ESTIMATOR.recordBlock(now);
             pruneOldEvents(now);
@@ -169,7 +170,7 @@ public final class MiningStats
         {
             WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
             MiningTrackerAddon.LOGGER.info(
-                    "[AET_DEBUG] block-mined worldKey={} worldName={} authoritative={} sessionActive={} sessionBefore={} sessionAfter={} lifetimeBefore={} lifetimeAfter={}",
+                    "[MMM_DEBUG] block-mined worldKey={} worldName={} authoritative={} sessionActive={} sessionBefore={} sessionAfter={} lifetimeBefore={} lifetimeAfter={}",
                     world.id(),
                     world.displayName(),
                     authoritativeMode,
@@ -186,6 +187,7 @@ public final class MiningStats
     {
         MINE_EVENTS.clear();
         currentSession = new SessionData(System.currentTimeMillis());
+        MiningValidationTracker.resetSession(currentSession.startTimeMs);
         PACE_ESTIMATOR.reset(currentSession.startTimeMs);
         streakStartMs = 0L;
         lastMineMs = 0L;
@@ -205,7 +207,7 @@ public final class MiningStats
         {
             WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
             MiningTrackerAddon.LOGGER.info(
-                    "[AET_DEBUG] session-start worldKey={} worldName={} sessionStartSourceTotal={} lifetime={}",
+                    "[MMM_DEBUG] session-start worldKey={} worldName={} sessionStartSourceTotal={} lifetime={}",
                     world.id(),
                     world.displayName(),
                     sessionStartTotalMined,
@@ -279,6 +281,7 @@ public final class MiningStats
 
         CloudSyncManager.onClientTick(now);
         DigsSyncManager.onClientTick(now);
+        MiningValidationTracker.onClientTick(now);
         SyncQueueManager.onClientTick(now);
     }
 
@@ -444,7 +447,7 @@ public final class MiningStats
             if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
             {
                 MiningTrackerAddon.LOGGER.info(
-                        "[AET_DEBUG] scoreboard-bootstrap-skipped worldKey={} worldName={} scoreboardSourceName={}",
+                        "[MMM_DEBUG] scoreboard-bootstrap-skipped worldKey={} worldName={} scoreboardSourceName={}",
                         worldInfo.id(),
                         worldInfo.displayName(),
                         scoreboardSourceName
@@ -483,7 +486,7 @@ public final class MiningStats
                     worldInfo
             );
             MiningTrackerAddon.LOGGER.info(
-                    "[AET_DEBUG] scoreboard-bootstrap-applied sourceKey={} sourceName={} scoreboardPlayerTotal={} sourceBefore={} sourceAfter={} lifetimeBefore={} lifetimeAfter={}",
+                    "[MMM_DEBUG] scoreboard-bootstrap-applied sourceKey={} sourceName={} scoreboardPlayerTotal={} sourceBefore={} sourceAfter={} lifetimeBefore={} lifetimeAfter={}",
                     sourceKey,
                     sourceDisplay,
                     scoreboardPlayerTotal,
@@ -758,7 +761,7 @@ public final class MiningStats
 
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] source-update reason={} worldKey={} worldName={} sessionActive={} sessionBlocks={} sourceBefore={} sourceAfter={} delta={} lifetime={}",
+                "[MMM_DEBUG] source-update reason={} worldKey={} worldName={} sessionActive={} sessionBlocks={} sourceBefore={} sourceAfter={} delta={} lifetime={}",
                 reason,
                 world.id(),
                 world.displayName(),

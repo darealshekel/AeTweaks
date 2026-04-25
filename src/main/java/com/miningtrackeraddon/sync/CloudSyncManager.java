@@ -11,6 +11,7 @@ import com.miningtrackeraddon.config.Configs.ProjectEntry;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.tracker.MiningValidationTracker;
 import com.miningtrackeraddon.util.UiFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,7 +26,7 @@ import net.minecraft.client.MinecraftClient;
 
 public final class CloudSyncManager
 {
-    private static final String LOG_PREFIX = "[AET_SYNC]";
+    private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
     private static final long LIVE_BLOCK_SYNC_INTERVAL_MS = 3_000L;
@@ -428,6 +429,7 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal, prediction));
         payload.add("session_state", buildSessionState());
+        payload.add("validation", buildValidationTelemetry(client, worldInfo, session));
 
         if (session != null && sessionStatus != null)
         {
@@ -447,6 +449,15 @@ public final class CloudSyncManager
         state.addProperty("session_total_blocks", MiningStats.getSessionBlocksMined());
         state.addProperty("session_duration_seconds", Math.max(0L, MiningStats.getSessionDurationMs() / 1000L));
         return state;
+    }
+
+    private static JsonObject buildValidationTelemetry(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo, SessionData session)
+    {
+        long sessionStart = session == null ? 0L : session.startTimeMs;
+        long sessionEnd = session == null ? 0L : session.endTimeMs;
+        long blocksDelta = session == null ? MiningStats.getSessionBlocksMined() : session.totalBlocks;
+        String uuid = client != null && client.player != null ? client.player.getUuidAsString() : "";
+        return MiningValidationTracker.buildPayload(resolveUsername(client), uuid, worldInfo, blocksDelta, sessionStart, sessionEnd);
     }
 
     private static JsonObject buildLifetimeTotals()
@@ -867,7 +878,7 @@ public final class CloudSyncManager
         }
 
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] sync-payload-created worldKey={} worldName={} sourceKey={} sourceName={} sessionActive={}",
+                "[MMM_DEBUG] sync-payload-created worldKey={} worldName={} sourceKey={} sourceName={} sessionActive={}",
                 worldInfo.id(),
                 worldInfo.displayName(),
                 sourceKey,

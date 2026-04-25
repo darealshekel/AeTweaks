@@ -8,7 +8,7 @@ import fi.dy.masa.malilib.config.options.ConfigHotkey;
 
 public final class Hotkeys
 {
-    public static final ConfigHotkey OPEN_CONFIG_GUI = new ConfigHotkey("openConfigGui", "X,V", "Open the AeTweaks config GUI");
+    public static final ConfigHotkey OPEN_CONFIG_GUI = new ConfigHotkey("openConfigGui", "X,V", "Open the MMM config GUI");
     public static final ConfigHotkey OPEN_SUMMARY = new ConfigHotkey("openSummary", "LEFT_ALT,S", "Open the current session summary");
     public static final ConfigHotkey OPEN_HISTORY = new ConfigHotkey("openHistory", "LEFT_ALT,H", "Open the saved session history");
     public static final ConfigHotkey PAUSE_SESSION = new ConfigHotkey("pauseSession", "LEFT_ALT,P", "Pause or resume the current mining session");

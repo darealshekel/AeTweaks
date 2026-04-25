@@ -155,7 +155,7 @@ public class HudMoveScreen extends Screen
     private void drawPreview(DrawContext context, int x, int y, double scale)
     {
         List<String> lines = new ArrayList<>();
-        lines.add("AeTweaks");
+        lines.add("MMM");
         lines.add("Project: Example Project | 12.3K blocks");
         lines.add("Total Mined: 4.8K blocks");
         lines.add("Blocks Per Hour: 3.2K blocks/hour");

@@ -121,7 +121,7 @@ public final class GoalNotificationManager
         if (client.player != null)
         {
             String message = "You reached " + threshold + "%! " + getRandomMessage(threshold);
-            client.player.sendMessage(Text.literal("[AeTweaks] ").formatted(net.minecraft.util.Formatting.GOLD)
+            client.player.sendMessage(Text.literal("[MMM] ").formatted(net.minecraft.util.Formatting.GOLD)
                     .append(Text.literal(message).formatted(getFormattingForThreshold(threshold))), false);
         }
     }

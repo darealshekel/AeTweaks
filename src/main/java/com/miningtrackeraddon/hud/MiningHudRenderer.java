@@ -47,7 +47,7 @@ public final class MiningHudRenderer
         }
 
         List<String> lines = new ArrayList<>();
-        lines.add("AeTweaks");
+        lines.add("MMM");
 
         MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
@@ -131,7 +131,7 @@ public final class MiningHudRenderer
     public static int[] getBounds(MinecraftClient client)
     {
         List<String> lines = new ArrayList<>();
-        lines.add("AeTweaks");
+        lines.add("MMM");
         lines.add("Project: Example Project | 12.3K blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3K blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Session Total: 890 blocks");

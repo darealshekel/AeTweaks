@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "miningtrackeraddon",
   "version": "${version}",
-  "name": "AeTweaks",
+  "name": "MMM",
   "description": "A Tweakeroo-style companion addon that adds mining tracking, HUD stats, projects, goals, notifications, and session summaries.",
   "authors": [
     "Shekel"

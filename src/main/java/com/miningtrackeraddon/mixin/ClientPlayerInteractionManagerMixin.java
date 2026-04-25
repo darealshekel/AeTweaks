@@ -3,12 +3,17 @@ package com.miningtrackeraddon.mixin;
 import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.tweak.FlatDigger;
 import com.miningtrackeraddon.tweak.PerimeterWallDigHelper;
+import com.miningtrackeraddon.tracker.MiningValidationTracker;
 import com.miningtrackeraddon.tracker.MiningStats;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import org.spongepowered.asm.mixin.Mixin;
@@ -58,6 +63,17 @@ public class ClientPlayerInteractionManagerMixin
         }
         this.miningtrackeraddon$pendingBlock = null;
         this.miningtrackeraddon$pendingState = null;
+    }
+
+    @Inject(method = "interactBlock", at = @At("RETURN"))
+    private void miningtrackeraddon$recordPlacedBlock(ClientPlayerEntity player, Hand hand, BlockHitResult hitResult, CallbackInfoReturnable<ActionResult> cir)
+    {
+        if (!FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() || hitResult == null || cir.getReturnValue() == null || cir.getReturnValue().isAccepted() == false)
+        {
+            return;
+        }
+
+        MiningValidationTracker.onBlockPlaced(hitResult.getBlockPos().offset(hitResult.getSide()), System.currentTimeMillis());
     }
 
     @Inject(method = "attackBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)

@@ -1,4 +1,4 @@
-# AeTweaks 1.0.5
+# MMM 1.0.5
 
 Release date: 2026-04-16
 

@@ -17,7 +17,7 @@ import net.minecraft.util.Util;
 
 public class WebsiteLinkScreen extends Screen
 {
-    private static final String WEBSITE_LOGIN_URL = "https://aewt-sync-pro.vercel.app/login";
+    private static final String WEBSITE_LOGIN_URL = "https://mmm-mu-six.vercel.app/login";
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 20;
     private static final int CARD_PADDING = 14;

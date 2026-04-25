@@ -97,7 +97,7 @@ public final class WorldSessionContext
 
         lastDebugFingerprint = fingerprint;
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] world-context-resolved worldId={} displayName={} kind={} host={}",
+                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host={}",
                 info.id(),
                 info.displayName(),
                 info.kind(),

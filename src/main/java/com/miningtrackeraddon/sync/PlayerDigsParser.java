@@ -305,7 +305,7 @@ public final class PlayerDigsParser
         }
 
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] player-digs-line objective={} owner={} text={} scoreValue={} decision={} reason={}",
+                "[MMM_DEBUG] player-digs-line objective={} owner={} text={} scoreValue={} decision={} reason={}",
                 objectiveTitle,
                 line.owner(),
                 line.cleaned(),

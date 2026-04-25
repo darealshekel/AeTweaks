@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class PendingSyncQueue
 {
-    private static final String LOG_PREFIX = "[AET_SYNC]";
+    private static final String LOG_PREFIX = "[MMM_SYNC]";
 
     public interface Sender
     {
@@ -58,7 +58,7 @@ public final class PendingSyncQueue
     public PendingSyncQueue(Path storePath, Sender sender, Listener listener)
     {
         this(storePath, sender, listener, runnable -> {
-            Thread thread = new Thread(runnable, "AeTweaks-SyncQueue");
+            Thread thread = new Thread(runnable, "MMM-SyncQueue");
             thread.setDaemon(true);
             return thread;
         });

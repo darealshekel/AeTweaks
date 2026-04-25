@@ -15,9 +15,9 @@ import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SyncQueueManager
 {
-    private static final String LOG_PREFIX = "[AET_SYNC]";
+    private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final long PERIODIC_FLUSH_INTERVAL_MS = 5_000L;
-    private static final String LINK_ENDPOINT = "https://aewt-sync-pro.vercel.app/api/auth/link-code/claim";
+    private static final String LINK_ENDPOINT = "https://mmm-mu-six.vercel.app/api/auth/link-code/claim";
 
     private static PendingSyncQueue queue;
     private static long lastPeriodicFlushMs;
@@ -181,8 +181,8 @@ public final class SyncQueueManager
             }
 
             Map<String, String> headers = Map.of(
-                    "x-aetweaks-sync-item-id", item.id,
-                    "x-aetweaks-sync-item-type", item.type.name());
+                    "x-mmm-sync-item-id", item.id,
+                    "x-mmm-sync-item-type", item.type.name());
 
             MiningTrackerAddon.LOGGER.info(
                     "{} request-sent id={} type={} endpoint={}",

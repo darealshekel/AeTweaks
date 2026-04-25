@@ -30,13 +30,19 @@ public class Configs implements IConfigHandler
 {
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.MOD_ID + ".json";
-    private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://xshbqnihopsznsnjqjji.supabase.co/functions/v1/aetweaks-sync";
+    private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/mmm-sync";
 
     public static class Generic
     {
-        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable AeTweaks website sync.");
+        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable MMM website sync.");
         public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
+        public static final ConfigInteger VALIDATION_MIN_BLOCKS = new ConfigInteger("validationMinBlocks", 250, 1, 100_000, "Minimum physical blocks in a session before MMM anti-AFK and anti-farm checks apply.");
+        public static final ConfigDouble VALIDATION_CAMERA_VARIANCE_THRESHOLD = new ConfigDouble("validationCameraVarianceThreshold", 1.5D, 0.0D, 45.0D, "Pitch/yaw standard-deviation threshold, in degrees, below which a large mining session is flagged.");
+        public static final ConfigDouble VALIDATION_POSITION_VARIANCE_THRESHOLD = new ConfigDouble("validationPositionVarianceThreshold", 1.25D, 0.0D, 16.0D, "Movement radius threshold, in blocks, below which a large mining session is flagged.");
+        public static final ConfigInteger VALIDATION_CONTINUOUS_MINING_TICKS = new ConfigInteger("validationContinuousMiningTicks", 2400, 20, 72_000, "Maximum continuous held-mining ticks before a session is flagged for no action pauses.");
+        public static final ConfigInteger VALIDATION_CLUSTER_BUFFER_SIZE = new ConfigInteger("validationClusterBufferSize", 50, 20, 200, "Recent broken-block buffer size used for repeated cluster farm detection.");
+        public static final ConfigInteger VALIDATION_PLACE_BREAK_WINDOW_SECONDS = new ConfigInteger("validationPlaceBreakWindowSeconds", 30, 1, 600, "Seconds after placement during which breaking the same block counts toward place-and-break telemetry.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
@@ -56,6 +62,12 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
+                VALIDATION_MIN_BLOCKS,
+                VALIDATION_CAMERA_VARIANCE_THRESHOLD,
+                VALIDATION_POSITION_VARIANCE_THRESHOLD,
+                VALIDATION_CONTINUOUS_MINING_TICKS,
+                VALIDATION_CLUSTER_BUFFER_SIZE,
+                VALIDATION_PLACE_BREAK_WINDOW_SECONDS,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 NOTIFICATION_THRESHOLDS,
@@ -123,7 +135,7 @@ public class Configs implements IConfigHandler
         cloudSyncSecret = cloudSyncSecret == null ? "" : cloudSyncSecret.trim();
         if (cloudClientId == null || cloudClientId.isBlank())
         {
-            cloudClientId = "aet_" + UUID.randomUUID();
+            cloudClientId = "mmm_" + UUID.randomUUID();
             syncIdentityGenerated = true;
         }
         websiteLinkedMinecraftUuid = websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid.trim().toLowerCase();

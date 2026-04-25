@@ -78,7 +78,7 @@ public final class WebsiteLinkManager
 
     static void onQueued(JsonObject payload)
     {
-        STATE.set(LinkState.queued(extractCode(payload), "Link request saved locally. AeTweaks will retry automatically."));
+        STATE.set(LinkState.queued(extractCode(payload), "Link request saved locally. MMM will retry automatically."));
     }
 
     static void onQueueSuccess(JsonObject payload, String responseBody)

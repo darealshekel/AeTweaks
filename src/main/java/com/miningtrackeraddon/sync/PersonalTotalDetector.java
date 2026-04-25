@@ -364,7 +364,7 @@ final class PersonalTotalDetector
         }
 
         MiningTrackerAddon.LOGGER.info(
-                "[AET_DEBUG] personal-total-candidate detector={} objective={} rendered={} rawScore={} parsed={} decision={} reason={}",
+                "[MMM_DEBUG] personal-total-candidate detector={} objective={} rendered={} rawScore={} parsed={} decision={} reason={}",
                 detector,
                 clean(objectiveTitle),
                 clean(rendered),

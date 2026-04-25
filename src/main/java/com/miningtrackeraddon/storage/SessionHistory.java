@@ -92,7 +92,7 @@ public final class SessionHistory
     public static String exportStats()
     {
         StringBuilder builder = new StringBuilder();
-        builder.append("=== AeTweaks Stats Export ===\n");
+        builder.append("=== MMM Stats Export ===\n");
         builder.append("World: ").append(currentWorldId).append("\n");
         builder.append("Generated: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date())).append("\n\n");
         builder.append("SESSION HISTORY\n---------------\n");
@@ -115,7 +115,7 @@ public final class SessionHistory
 
     public static Path exportToFile() throws IOException
     {
-        Path exportPath = getWorldDir().resolve("aetweaks-export.txt");
+        Path exportPath = getWorldDir().resolve("mmm-export.txt");
         Files.createDirectories(exportPath.getParent());
         Files.writeString(exportPath, exportStats(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         return exportPath;

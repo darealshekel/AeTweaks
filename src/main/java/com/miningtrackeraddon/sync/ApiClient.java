@@ -12,6 +12,7 @@ import com.miningtrackeraddon.config.Configs;
 
 final class ApiClient
 {
+    private static final String MMM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6Imptc3BvaXJ5emZpbHBwaW92aG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjE3NjYsImV4cCI6MjA5MjUzNzc2Nn0.YHMWM0T37BHFU6m2vpw9s-GlmY6NBitE4Ku-6hpA-uQ";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10L))
             .build();
@@ -48,6 +49,12 @@ final class ApiClient
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
 
+        if (isSupabaseFunctionEndpoint(endpoint))
+        {
+            builder.header("apikey", MMM_SUPABASE_ANON_KEY);
+            builder.header("Authorization", "Bearer " + MMM_SUPABASE_ANON_KEY);
+        }
+
         if (secret != null && secret.isBlank() == false)
         {
             builder.header("x-sync-secret", secret);
@@ -67,6 +74,12 @@ final class ApiClient
         return builder.build();
     }
 
+    private static boolean isSupabaseFunctionEndpoint(String endpoint)
+    {
+        return endpoint != null
+                && endpoint.startsWith("https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/");
+    }
+
     private static void debugSend(String endpoint, String jsonBody)
     {
         if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
@@ -75,7 +88,7 @@ final class ApiClient
         }
 
         int bodyLength = jsonBody == null ? 0 : jsonBody.length();
-        MiningTrackerAddon.LOGGER.info("[AET_DEBUG] sync-request-send endpoint={} bodyLength={}", endpoint, bodyLength);
+        MiningTrackerAddon.LOGGER.info("[MMM_DEBUG] sync-request-send endpoint={} bodyLength={}", endpoint, bodyLength);
         MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] sending payload endpoint={} bodyLength={}", endpoint, bodyLength);
     }
 }
