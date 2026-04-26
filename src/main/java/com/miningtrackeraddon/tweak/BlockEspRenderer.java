@@ -2,17 +2,16 @@ package com.miningtrackeraddon.tweak;
 
 import com.miningtrackeraddon.config.Configs;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.Color4f;
+import fi.dy.masa.malilib.util.data.Color4f;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.ShaderProgramKeys;
 import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -70,11 +69,6 @@ public final class BlockEspRenderer
         float maxY = (float) (targetPos.getY() + 1.0D - cameraPos.y + BOX_EXPAND);
         float maxZ = (float) (targetPos.getZ() + 1.0D - cameraPos.z + BOX_EXPAND);
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.depthMask(false);
-
         if (!Configs.isBlockEspOutlineOnly())
         {
             drawFill(minX, minY, minZ, maxX, maxY, maxZ, Color4f.fromColor(baseColor, opacity));
@@ -84,31 +78,30 @@ public final class BlockEspRenderer
         {
             drawOutline(targetPos, cameraPos, Color4f.fromColor(baseColor, opacity));
         }
-
-        RenderSystem.depthMask(true);
-        RenderSystem.enableCull();
-        RenderSystem.disableBlend();
     }
 
     private static void drawFill(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f color)
     {
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
         RenderUtils.drawBoxAllSidesBatchedQuads(minX, minY, minZ, maxX, maxY, maxZ, color, buffer);
-        BufferRenderer.drawWithGlobalProgram(buffer.endNullable());
+        BuiltBuffer builtBuffer = buffer.endNullable();
+        if (builtBuffer != null)
+        {
+            RenderLayer.getDebugQuads().draw(builtBuffer);
+        }
     }
 
     private static void drawOutline(BlockPos targetPos, Vec3d cameraPos, Color4f color)
     {
         Tessellator tessellator = Tessellator.getInstance();
         BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
-        RenderSystem.setShader(ShaderProgramKeys.POSITION_COLOR);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        RenderSystem.lineWidth(2.0F);
         RenderUtils.drawBlockBoundingBoxOutlinesBatchedLines(targetPos, cameraPos, color, BOX_EXPAND, buffer);
-        BufferRenderer.drawWithGlobalProgram(buffer.endNullable());
-        RenderSystem.lineWidth(1.0F);
+        BuiltBuffer builtBuffer = buffer.endNullable();
+        if (builtBuffer != null)
+        {
+            RenderLayer.getLines().draw(builtBuffer);
+        }
     }
 
     private static Color4f getCurrentColor(MinecraftClient client)

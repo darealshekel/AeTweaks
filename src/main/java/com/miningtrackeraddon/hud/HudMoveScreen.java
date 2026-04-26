@@ -166,9 +166,9 @@ public class HudMoveScreen extends Screen
         int padding = 4;
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
 
-        context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0.0F);
-        context.getMatrices().scale((float) scale, (float) scale, 1.0F);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale((float) scale, (float) scale);
         context.fill(-padding, -padding, width + padding, totalHeight, 0xD0101010);
         context.drawBorder(-padding, -padding, width + padding * 2, totalHeight, 0xFFFFAA00);
 
@@ -188,6 +188,6 @@ public class HudMoveScreen extends Screen
         context.fill(0, barY, width, barY + 6, 0xFF333333);
         context.fill(0, barY, width, barY + 6, UiFormat.BLUE);
         context.drawBorder(0, barY, width, 6, 0xFF777777);
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
     }
 }
