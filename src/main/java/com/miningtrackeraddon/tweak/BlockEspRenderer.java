@@ -2,6 +2,7 @@ package com.miningtrackeraddon.tweak;
 
 import com.miningtrackeraddon.config.Configs;
 
+import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.data.Color4f;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
@@ -14,6 +15,8 @@ public final class BlockEspRenderer
 {
     private static final float RAINBOW_SATURATION = 0.9F;
     private static final float RAINBOW_BRIGHTNESS = 1.0F;
+    private static final float BOX_EXPAND = 0.002F;
+    private static final float OUTLINE_WIDTH = 1.0F;
 
     private BlockEspRenderer()
     {
@@ -26,12 +29,21 @@ public final class BlockEspRenderer
 
     public static void render(MinecraftClient client, Matrix4f positionMatrix, Matrix4f projectionMatrix)
     {
-        // The actual highlight is rendered by WorldRendererMixin through Minecraft's own block-outline path.
-        // Keeping this extra world-render hook inert prevents the old debug-quad pass from leaking state.
-        if (!shouldReplaceVanillaOutline(client))
+        if (Configs.isBlockEspOutlineOnly() || positionMatrix == null)
         {
             return;
         }
+
+        BlockPos targetPos = getTargetBlock(client);
+        if (targetPos == null)
+        {
+            return;
+        }
+
+        Color4f baseColor = getCurrentColor(client);
+        Color4f fillColor = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
+        Color4f outlineColor = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
+        RenderUtils.renderBlockOutlineOverlapping(targetPos, BOX_EXPAND, OUTLINE_WIDTH, fillColor, outlineColor, outlineColor, positionMatrix);
     }
 
     private static Color4f getCurrentColor(MinecraftClient client)
@@ -56,20 +68,25 @@ public final class BlockEspRenderer
 
     public static boolean shouldReplaceVanillaOutline(MinecraftClient client)
     {
+        return Configs.getBlockEspOpacity() > 0.0F && getTargetBlock(client) != null;
+    }
+
+    private static BlockPos getTargetBlock(MinecraftClient client)
+    {
         if (client == null || client.player == null || client.world == null || Configs.getBlockEspOpacity() <= 0.0F)
         {
-            return false;
+            return null;
         }
 
         HitResult hitResult = client.crosshairTarget;
         if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() != HitResult.Type.BLOCK)
         {
-            return false;
+            return null;
         }
 
         BlockPos targetPos = blockHitResult.getBlockPos();
         BlockState state = client.world.getBlockState(targetPos);
-        return state.isAir() == false;
+        return state.isAir() ? null : targetPos;
     }
 
     public static int getCurrentOutlineColor(MinecraftClient client)
