@@ -36,6 +36,10 @@ public final class SyncQueueManager
         Path queuePath = FileUtils.getConfigDirectory().toPath().resolve(Reference.STORAGE_ID + "-sync-queue.json");
         queue = new PendingSyncQueue(queuePath, SyncQueueManager::send, new QueueListener());
         queue.initialize();
+        MiningTrackerAddon.LOGGER.info("{} queue-initialized endpoint={} linkEndpoint={}",
+                LOG_PREFIX,
+                Configs.cloudSyncEndpoint,
+                LINK_ENDPOINT);
         forceFlush("mod startup");
     }
 
@@ -152,19 +156,7 @@ public final class SyncQueueManager
                 return SyncSendResult.drop(400, "Missing client_id/username.", "");
             }
 
-            String secret = usesSyncSecret(item.type) ? Configs.cloudSyncSecret : null;
-            boolean hasSyncSecret = secret != null && secret.isBlank() == false;
-            if (usesSyncSecret(item.type) && hasSyncSecret == false)
-            {
-                MiningTrackerAddon.LOGGER.warn(
-                        "{} send-skipped-no-sync-secret id={} type={} hasSessionToken={} hasLinkedIdentity={} note=continuing_without_secret_header",
-                        LOG_PREFIX,
-                        item.id,
-                        item.type,
-                        hasSessionToken,
-                        hasLinkedIdentity
-                );
-            }
+            String secret = null;
             if (hasSessionToken == false)
             {
                 MiningTrackerAddon.LOGGER.warn("{} send-skipped-no-session-token id={} type={} note=payload_missing_minecraft_uuid",
@@ -185,11 +177,12 @@ public final class SyncQueueManager
                     "x-mmm-sync-item-type", item.type.name());
 
             MiningTrackerAddon.LOGGER.info(
-                    "{} request-sent id={} type={} endpoint={}",
+                    "{} request-sent id={} type={} endpoint={} payloadSummary={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
-                    endpoint
+                    endpoint,
+                    summarizePayload(item.payload)
             );
             MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] request sent id={} type={} endpoint={} payload={}",
                     item.id,
@@ -199,12 +192,18 @@ public final class SyncQueueManager
             HttpResponse<String> response = ApiClient.postJsonBlocking(endpoint, secret, item.payload.toString(), headers);
             int statusCode = response.statusCode();
             String body = response.body() == null ? "" : response.body();
-            MiningTrackerAddon.LOGGER.info("{} response-received id={} type={} status={}", LOG_PREFIX, item.id, item.type, statusCode);
-            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] response status={} id={} type={} detail={}",
+            MiningTrackerAddon.LOGGER.info("{} response-received id={} type={} status={} body={}",
+                    LOG_PREFIX,
+                    item.id,
+                    item.type,
+                    statusCode,
+                    summarizeResponseBody(body));
+            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] response status={} id={} type={} detail={} body={}",
                     statusCode,
                     item.id,
                     item.type,
-                    extractError(body, statusCode >= 200 && statusCode < 300 ? "ok" : "http_error"));
+                    extractError(body, statusCode >= 200 && statusCode < 300 ? "ok" : "http_error"),
+                    summarizeResponseBody(body));
 
             if (statusCode >= 200 && statusCode < 300)
             {
@@ -235,13 +234,6 @@ public final class SyncQueueManager
             case CLOUD_LIVE_STATE, CLOUD_FINISHED_SESSION, PLAYER_TOTAL_DIGS -> Configs.cloudSyncEndpoint;
             case WEBSITE_LINK_CLAIM -> LINK_ENDPOINT;
         };
-    }
-
-    private static boolean usesSyncSecret(SyncItemType type)
-    {
-        return type == SyncItemType.CLOUD_LIVE_STATE
-                || type == SyncItemType.CLOUD_FINISHED_SESSION
-                || type == SyncItemType.PLAYER_TOTAL_DIGS;
     }
 
     private static boolean isPermanentLinkFailure(int statusCode, String body)
@@ -319,6 +311,18 @@ public final class SyncQueueManager
         }
 
         return "username=" + username + " source=" + source + " total=" + total;
+    }
+
+    private static String summarizeResponseBody(String body)
+    {
+        if (body == null || body.isBlank())
+        {
+            return "<empty>";
+        }
+
+        String compact = body.replace('\n', ' ').replace('\r', ' ').trim();
+        int maxLength = 700;
+        return compact.length() <= maxLength ? compact : compact.substring(0, maxLength) + "...";
     }
 
     private static final class QueueListener implements PendingSyncQueue.Listener

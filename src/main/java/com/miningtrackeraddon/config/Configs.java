@@ -128,7 +128,8 @@ public class Configs implements IConfigHandler
         dailyProgress = Math.max(0L, dailyProgress);
         dailyGoalLastResetMs = Math.max(0L, dailyGoalLastResetMs);
         totalBlocksMined = Math.max(0L, totalBlocksMined);
-        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank())
+        boolean migratedLegacySyncEndpoint = isLegacySyncEndpoint(cloudSyncEndpoint);
+        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank() || migratedLegacySyncEndpoint)
         {
             cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
         }
@@ -153,10 +154,24 @@ public class Configs implements IConfigHandler
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated)
+        if (syncIdentityGenerated || migratedLegacySyncEndpoint)
         {
             saveToFile();
         }
+    }
+
+    private static boolean isLegacySyncEndpoint(String endpoint)
+    {
+        if (endpoint == null)
+        {
+            return false;
+        }
+
+        String normalized = endpoint.trim().toLowerCase();
+        return normalized.contains("aetweaks")
+                || normalized.contains("aewt-sync-pro")
+                || normalized.contains("xshbqnihopsznsnjqjji")
+                || normalized.endsWith("/aetweaks-sync");
     }
 
     public static void loadFromFile()

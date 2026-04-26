@@ -2,28 +2,18 @@ package com.miningtrackeraddon.tweak;
 
 import com.miningtrackeraddon.config.Configs;
 
-import com.mojang.blaze3d.vertex.VertexFormat;
-import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.data.Color4f;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BuiltBuffer;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormats;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 public final class BlockEspRenderer
 {
     private static final float RAINBOW_SATURATION = 0.9F;
     private static final float RAINBOW_BRIGHTNESS = 1.0F;
-    private static final float BOX_EXPAND = 0.002F;
 
     private BlockEspRenderer()
     {
@@ -36,71 +26,11 @@ public final class BlockEspRenderer
 
     public static void render(MinecraftClient client, Matrix4f positionMatrix, Matrix4f projectionMatrix)
     {
-        if (client == null || client.world == null || client.player == null)
+        // The actual highlight is rendered by WorldRendererMixin through Minecraft's own block-outline path.
+        // Keeping this extra world-render hook inert prevents the old debug-quad pass from leaking state.
+        if (!shouldReplaceVanillaOutline(client))
         {
             return;
-        }
-
-        HitResult hitResult = client.crosshairTarget;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() != HitResult.Type.BLOCK)
-        {
-            return;
-        }
-
-        BlockPos targetPos = blockHitResult.getBlockPos();
-        BlockState state = client.world.getBlockState(targetPos);
-        if (state.isAir())
-        {
-            return;
-        }
-
-        Color4f baseColor = getCurrentColor(client);
-        float opacity = Configs.getBlockEspOpacity();
-        if (opacity <= 0.0F)
-        {
-            return;
-        }
-        Camera camera = client.gameRenderer.getCamera();
-        Vec3d cameraPos = camera.getPos();
-        float minX = (float) (targetPos.getX() - cameraPos.x - BOX_EXPAND);
-        float minY = (float) (targetPos.getY() - cameraPos.y - BOX_EXPAND);
-        float minZ = (float) (targetPos.getZ() - cameraPos.z - BOX_EXPAND);
-        float maxX = (float) (targetPos.getX() + 1.0D - cameraPos.x + BOX_EXPAND);
-        float maxY = (float) (targetPos.getY() + 1.0D - cameraPos.y + BOX_EXPAND);
-        float maxZ = (float) (targetPos.getZ() + 1.0D - cameraPos.z + BOX_EXPAND);
-
-        if (!Configs.isBlockEspOutlineOnly())
-        {
-            drawFill(minX, minY, minZ, maxX, maxY, maxZ, Color4f.fromColor(baseColor, opacity));
-        }
-
-        if (!Configs.isBlockEspOutlineOnly())
-        {
-            drawOutline(targetPos, cameraPos, Color4f.fromColor(baseColor, opacity));
-        }
-    }
-
-    private static void drawFill(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, Color4f color)
-    {
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-        RenderUtils.drawBoxAllSidesBatchedQuads(minX, minY, minZ, maxX, maxY, maxZ, color, buffer);
-        BuiltBuffer builtBuffer = buffer.endNullable();
-        if (builtBuffer != null)
-        {
-            RenderLayer.getDebugQuads().draw(builtBuffer);
-        }
-    }
-
-    private static void drawOutline(BlockPos targetPos, Vec3d cameraPos, Color4f color)
-    {
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buffer = tessellator.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
-        RenderUtils.drawBlockBoundingBoxOutlinesBatchedLines(targetPos, cameraPos, color, BOX_EXPAND, buffer);
-        BuiltBuffer builtBuffer = buffer.endNullable();
-        if (builtBuffer != null)
-        {
-            RenderLayer.getLines().draw(builtBuffer);
         }
     }
 
@@ -126,10 +56,20 @@ public final class BlockEspRenderer
 
     public static boolean shouldReplaceVanillaOutline(MinecraftClient client)
     {
-        return client != null
-                && client.player != null
-                && client.world != null
-                && Configs.getBlockEspOpacity() > 0.0F;
+        if (client == null || client.player == null || client.world == null || Configs.getBlockEspOpacity() <= 0.0F)
+        {
+            return false;
+        }
+
+        HitResult hitResult = client.crosshairTarget;
+        if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() != HitResult.Type.BLOCK)
+        {
+            return false;
+        }
+
+        BlockPos targetPos = blockHitResult.getBlockPos();
+        BlockState state = client.world.getBlockState(targetPos);
+        return state.isAir() == false;
     }
 
     public static int getCurrentOutlineColor(MinecraftClient client)

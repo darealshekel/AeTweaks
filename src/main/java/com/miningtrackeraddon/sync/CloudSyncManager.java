@@ -34,6 +34,7 @@ public final class CloudSyncManager
     private static final long AETERNUM_SCOREBOARD_SYNC_INTERVAL_MS = 3_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
+    private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
@@ -48,6 +49,8 @@ public final class CloudSyncManager
     private static String lastSuccessfulLeaderboardFingerprint;
     private static volatile String lastPayloadSourceKey = "";
     private static volatile String lastPayloadSourceName = "";
+    private static volatile long lastSyncUnavailableLogMs;
+    private static volatile String lastSyncUnavailableReason = "";
 
     private CloudSyncManager()
     {
@@ -374,9 +377,37 @@ public final class CloudSyncManager
 
     private static boolean canSync()
     {
-        return Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue()
-                && Configs.cloudSyncEndpoint != null
-                && Configs.cloudSyncEndpoint.isBlank() == false;
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            logSyncUnavailable("websiteSyncEnabled_false");
+            return false;
+        }
+
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            logSyncUnavailable("endpoint_blank");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void logSyncUnavailable(String reason)
+    {
+        long now = System.currentTimeMillis();
+        syncStatusDetail = "Sync disabled: " + reason;
+
+        if (reason.equals(lastSyncUnavailableReason) && now - lastSyncUnavailableLogMs < SYNC_UNAVAILABLE_LOG_INTERVAL_MS)
+        {
+            return;
+        }
+
+        lastSyncUnavailableReason = reason;
+        lastSyncUnavailableLogMs = now;
+        MiningTrackerAddon.LOGGER.warn("{} cloud-sync-disabled reason={} endpoint={}",
+                LOG_PREFIX,
+                reason,
+                Configs.cloudSyncEndpoint == null ? "" : Configs.cloudSyncEndpoint);
     }
 
     private static boolean hasLiveContext()

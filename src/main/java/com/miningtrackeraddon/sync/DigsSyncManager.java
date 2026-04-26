@@ -1,8 +1,10 @@
 package com.miningtrackeraddon.sync;
 
 import com.google.gson.JsonObject;
+import com.miningtrackeraddon.MiningTrackerAddon;
 import com.miningtrackeraddon.Reference;
 import com.miningtrackeraddon.config.Configs;
+import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.tracker.MiningValidationTracker;
@@ -12,10 +14,12 @@ import net.minecraft.client.MinecraftClient;
 
 public final class DigsSyncManager
 {
+    private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final long MIN_SYNC_INTERVAL_MS = 7_500L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long AUTHORITATIVE_MODEL_STALE_MS = 15_000L;
+    private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
 
     private static PlayerDigsModel latestModel;
     private static String lastQueuedFingerprint;
@@ -38,6 +42,8 @@ public final class DigsSyncManager
     private static volatile long debugSidebarRawScore;
     private static volatile long debugTabRawScore;
     private static volatile String debugSkipReason = "";
+    private static volatile long lastSyncUnavailableLogMs;
+    private static volatile String lastSyncUnavailableReason = "";
 
     private DigsSyncManager()
     {
@@ -70,7 +76,13 @@ public final class DigsSyncManager
             return;
         }
 
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false || canSync() == false)
+        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            logSyncUnavailable("totalDigsSyncEnabled_false");
+            return;
+        }
+
+        if (canSync() == false)
         {
             return;
         }
@@ -238,13 +250,17 @@ public final class DigsSyncManager
         digs.addProperty("timestamp", Instant.ofEpochMilli(model.capturedAtMs()).toString());
         digs.addProperty("objective_title", model.objectiveTitle());
         payload.add("player_total_digs", digs);
+
+        SessionData currentSession = MiningStats.getCurrentSession();
+        long sessionStartMs = currentSession == null ? 0L : currentSession.startTimeMs;
+        long sessionEndMs = currentSession == null ? 0L : currentSession.endTimeMs;
         payload.add("validation", MiningValidationTracker.buildPayload(
                 model.username(),
                 client != null && client.player != null ? client.player.getUuidAsString() : "",
                 worldInfo,
                 MiningStats.getSessionBlocksMined(),
-                MiningStats.getCurrentSession().startTimeMs,
-                MiningStats.getCurrentSession().endTimeMs));
+                sessionStartMs,
+                sessionEndMs));
 
         return payload;
     }
@@ -291,7 +307,29 @@ public final class DigsSyncManager
 
     private static boolean canSync()
     {
-        return Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            logSyncUnavailable("endpoint_blank");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static void logSyncUnavailable(String reason)
+    {
+        long now = System.currentTimeMillis();
+        if (reason.equals(lastSyncUnavailableReason) && now - lastSyncUnavailableLogMs < SYNC_UNAVAILABLE_LOG_INTERVAL_MS)
+        {
+            return;
+        }
+
+        lastSyncUnavailableReason = reason;
+        lastSyncUnavailableLogMs = now;
+        MiningTrackerAddon.LOGGER.warn("{} total-digs-sync-disabled reason={} endpoint={}",
+                LOG_PREFIX,
+                reason,
+                Configs.cloudSyncEndpoint == null ? "" : Configs.cloudSyncEndpoint);
     }
 
     private static String dedupeKey(PlayerDigsModel model)

@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import com.miningtrackeraddon.MiningTrackerAddon;
-import com.miningtrackeraddon.config.Configs;
 
 final class ApiClient
 {
@@ -25,7 +24,7 @@ final class ApiClient
     {
         try
         {
-            debugSend(endpoint, jsonBody);
+            logSend(endpoint, jsonBody, Map.of(), secret);
             HTTP_CLIENT.sendAsync(buildPostJsonRequest(endpoint, secret, jsonBody, Map.of()), HttpResponse.BodyHandlers.ofString())
                     .whenComplete(callback);
         }
@@ -37,7 +36,7 @@ final class ApiClient
 
     static HttpResponse<String> postJsonBlocking(String endpoint, String secret, String jsonBody, Map<String, String> extraHeaders) throws Exception
     {
-        debugSend(endpoint, jsonBody);
+        logSend(endpoint, jsonBody, extraHeaders, secret);
         return HTTP_CLIENT.send(buildPostJsonRequest(endpoint, secret, jsonBody, extraHeaders), HttpResponse.BodyHandlers.ofString());
     }
 
@@ -80,15 +79,20 @@ final class ApiClient
                 && endpoint.startsWith("https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/");
     }
 
-    private static void debugSend(String endpoint, String jsonBody)
+    private static void logSend(String endpoint, String jsonBody, Map<String, String> extraHeaders, String secret)
     {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
-        {
-            return;
-        }
-
         int bodyLength = jsonBody == null ? 0 : jsonBody.length();
-        MiningTrackerAddon.LOGGER.info("[MMM_DEBUG] sync-request-send endpoint={} bodyLength={}", endpoint, bodyLength);
-        MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] sending payload endpoint={} bodyLength={}", endpoint, bodyLength);
+        boolean supabaseAuth = isSupabaseFunctionEndpoint(endpoint);
+        boolean syncSecret = secret != null && secret.isBlank() == false;
+        int extraHeaderCount = extraHeaders == null ? 0 : extraHeaders.size();
+
+        MiningTrackerAddon.LOGGER.info(
+                "[MMM_SYNC] http-request endpoint={} bodyLength={} supabaseAnonAuth={} syncSecretHeader={} extraHeaderCount={}",
+                endpoint,
+                bodyLength,
+                supabaseAuth,
+                syncSecret,
+                extraHeaderCount
+        );
     }
 }
