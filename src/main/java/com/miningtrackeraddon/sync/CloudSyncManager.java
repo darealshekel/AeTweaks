@@ -212,6 +212,7 @@ public final class CloudSyncManager
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
         applySyncResponse(responseBody);
+        WebsiteProfileTotals.refresh(true);
         Configs.websiteLastSuccessfulSyncMs = System.currentTimeMillis();
         Configs.saveToFile();
 
@@ -460,7 +461,7 @@ public final class CloudSyncManager
             if (playerProfile != null)
             {
                 long globalTotal = getLong(playerProfile, "global_total_blocks", Configs.websiteGlobalTotalBlocks);
-                if (globalTotal != Configs.websiteGlobalTotalBlocks)
+                if (globalTotal > Configs.websiteGlobalTotalBlocks)
                 {
                     Configs.websiteGlobalTotalBlocks = globalTotal;
                     Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();

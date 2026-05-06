@@ -3,6 +3,7 @@ package com.miningtrackeraddon.ui;
 import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.sync.CloudSyncManager;
+import com.miningtrackeraddon.sync.WebsiteProfileTotals;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.util.UiFormat;
 import java.util.Comparator;
@@ -34,6 +35,7 @@ public class PlayerProfileScreen extends Screen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
+        WebsiteProfileTotals.refresh(false);
         this.clearChildren();
         Layout layout = computeLayout();
         ButtonWidget profileButton = ButtonWidget.builder(Text.literal("Open Website Profile"), button -> openWebsiteProfile())
@@ -177,10 +179,10 @@ public class PlayerProfileScreen extends Screen
         long updated = Math.max(Configs.websiteGlobalTotalUpdatedAtMs, Configs.websiteLastSuccessfulSyncMs);
         if (updated <= 0L)
         {
-            return "Database total not returned yet";
+            return "Website profile total not loaded yet";
         }
         long ageSeconds = Math.max(0L, (System.currentTimeMillis() - updated) / 1000L);
-        return "Database update " + UiFormat.formatDuration(ageSeconds) + " ago";
+        return "Website profile update " + UiFormat.formatDuration(ageSeconds) + " ago";
     }
 
     private void openWebsiteProfile()
