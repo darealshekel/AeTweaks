@@ -10,6 +10,7 @@ import com.google.gson.JsonParser;
 import com.miningtrackeraddon.MiningTrackerAddon;
 import com.miningtrackeraddon.Reference;
 import com.miningtrackeraddon.config.Configs;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 
 import fi.dy.masa.malilib.util.FileUtils;
 
@@ -17,7 +18,7 @@ public final class SyncQueueManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final long PERIODIC_FLUSH_INTERVAL_MS = 5_000L;
-    private static final String LINK_ENDPOINT = "https://mmm-mu-six.vercel.app/api/auth/link-code/claim";
+    private static final String LINK_ENDPOINT = "https://www.mmmaniacs.com/api/auth/link-code/claim";
 
     private static PendingSyncQueue queue;
     private static long lastPeriodicFlushMs;
@@ -176,15 +177,11 @@ public final class SyncQueueManager
                     "x-mmm-sync-item-id", item.id,
                     "x-mmm-sync-item-type", item.type.name());
 
-            MiningTrackerAddon.LOGGER.info(
+            MmmDebugLogger.info(
+                    "syncqueue-request-" + item.type.name(),
+                    10_000L,
                     "{} request-sent id={} type={} endpoint={} payloadSummary={}",
                     LOG_PREFIX,
-                    item.id,
-                    item.type,
-                    endpoint,
-                    summarizePayload(item.payload)
-            );
-            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] request sent id={} type={} endpoint={} payload={}",
                     item.id,
                     item.type,
                     endpoint,
@@ -192,18 +189,27 @@ public final class SyncQueueManager
             HttpResponse<String> response = ApiClient.postJsonBlocking(endpoint, secret, item.payload.toString(), headers);
             int statusCode = response.statusCode();
             String body = response.body() == null ? "" : response.body();
-            MiningTrackerAddon.LOGGER.info("{} response-received id={} type={} status={} body={}",
-                    LOG_PREFIX,
-                    item.id,
-                    item.type,
-                    statusCode,
-                    summarizeResponseBody(body));
-            MiningTrackerAddon.LOGGER.info("[SYNC_DEBUG] response status={} id={} type={} detail={} body={}",
-                    statusCode,
-                    item.id,
-                    item.type,
-                    extractError(body, statusCode >= 200 && statusCode < 300 ? "ok" : "http_error"),
-                    summarizeResponseBody(body));
+            if (statusCode >= 200 && statusCode < 300)
+            {
+                MmmDebugLogger.info(
+                        "syncqueue-response-" + item.type.name(),
+                        10_000L,
+                        "{} response-received id={} type={} status={} body={}",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type,
+                        statusCode,
+                        summarizeResponseBody(body));
+            }
+            else
+            {
+                MiningTrackerAddon.LOGGER.warn("{} response-received id={} type={} status={} body={}",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type,
+                        statusCode,
+                        summarizeResponseBody(body));
+            }
 
             if (statusCode >= 200 && statusCode < 300)
             {

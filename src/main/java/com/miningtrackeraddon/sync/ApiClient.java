@@ -7,11 +7,11 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import com.miningtrackeraddon.MiningTrackerAddon;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 
 final class ApiClient
 {
-    private static final String MMM_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6Imptc3BvaXJ5emZpbHBwaW92aG1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjE3NjYsImV4cCI6MjA5MjUzNzc2Nn0.YHMWM0T37BHFU6m2vpw9s-GlmY6NBitE4Ku-6hpA-uQ";
+    private static final String MMM_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_3l5jqZx0ygv9BOX3To0laQ_uqcyzEqd";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10L))
             .build();
@@ -50,8 +50,7 @@ final class ApiClient
 
         if (isSupabaseFunctionEndpoint(endpoint))
         {
-            builder.header("apikey", MMM_SUPABASE_ANON_KEY);
-            builder.header("Authorization", "Bearer " + MMM_SUPABASE_ANON_KEY);
+            builder.header("apikey", MMM_SUPABASE_PUBLISHABLE_KEY);
         }
 
         if (secret != null && secret.isBlank() == false)
@@ -82,17 +81,18 @@ final class ApiClient
     private static void logSend(String endpoint, String jsonBody, Map<String, String> extraHeaders, String secret)
     {
         int bodyLength = jsonBody == null ? 0 : jsonBody.length();
-        boolean supabaseAuth = isSupabaseFunctionEndpoint(endpoint);
+        boolean supabasePublishableKey = isSupabaseFunctionEndpoint(endpoint);
         boolean syncSecret = secret != null && secret.isBlank() == false;
         int extraHeaderCount = extraHeaders == null ? 0 : extraHeaders.size();
 
-        MiningTrackerAddon.LOGGER.info(
-                "[MMM_SYNC] http-request endpoint={} bodyLength={} supabaseAnonAuth={} syncSecretHeader={} extraHeaderCount={}",
+        MmmDebugLogger.info(
+                "api-client-http-request",
+                10_000L,
+                "[MMM_SYNC] http-request endpoint={} bodyLength={} supabasePublishableKey={} syncSecretHeader={} extraHeaderCount={}",
                 endpoint,
                 bodyLength,
-                supabaseAuth,
+                supabasePublishableKey,
                 syncSecret,
-                extraHeaderCount
-        );
+                extraHeaderCount);
     }
 }

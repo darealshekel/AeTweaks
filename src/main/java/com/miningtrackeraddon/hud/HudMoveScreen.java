@@ -5,6 +5,8 @@ import java.util.List;
 
 import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.config.Configs.HudAlignment;
+import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -42,10 +44,12 @@ public class HudMoveScreen extends Screen
     {
         ensureCursorVisible();
         int centerX = this.width / 2;
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 16, UiFormat.YELLOW);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Drag the HUD to move it."), centerX, 28, UiFormat.TEXT_MUTED);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Size: " + (int) Math.round(Configs.Generic.HUD_SCALE.getDoubleValue() * 100.0D) + "%"), centerX, 48, UiFormat.TEXT_PRIMARY);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Use +/- or mouse wheel to change size."), centerX, 72, UiFormat.TEXT_MUTED);
+        MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.card(context, centerX - 142, 12, 284, 78, MmmUi.PANEL, MmmUi.BORDER);
+        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 20, MmmUi.TEXT);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Drag the HUD to move it."), centerX, 34, MmmUi.LABEL);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Size: " + (int) Math.round(Configs.Generic.HUD_SCALE.getDoubleValue() * 100.0D) + "%"), centerX, 50, MmmUi.ACCENT_BRIGHT);
+        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Use +/- or mouse wheel to change size."), centerX, 70, MmmUi.MUTED);
 
         drawPreview(context, Configs.Generic.HUD_X.getIntegerValue(), Configs.Generic.HUD_Y.getIntegerValue(), Configs.Generic.HUD_SCALE.getDoubleValue());
         super.render(context, mouseX, mouseY, delta);
@@ -156,10 +160,13 @@ public class HudMoveScreen extends Screen
     {
         List<String> lines = new ArrayList<>();
         lines.add("MMM");
-        lines.add("Project: Example Project | 12.3K blocks");
-        lines.add("Total Mined: 4.8K blocks");
-        lines.add("Blocks Per Hour: 3.2K blocks/hour");
-        lines.add("Session Time: 01:23:45");
+        MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
+        MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
+        lines.add("Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()));
+        lines.add("World Total: " + UiFormat.formatBlocks(MiningStats.getCurrentSourceTotalMined()));
+        lines.add("Session Total: " + UiFormat.formatBlocks(MiningStats.getSessionBlocksMined()));
+        lines.add("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())));
+        lines.add("Session Time: " + MiningStats.getSessionDurationClock());
 
         int width = Math.max(lines.stream().mapToInt(this.textRenderer::getWidth).max().orElse(190), 190);
         int lineHeight = this.textRenderer.fontHeight + 2;
@@ -169,25 +176,29 @@ public class HudMoveScreen extends Screen
         context.getMatrices().pushMatrix();
         context.getMatrices().translate(x, y);
         context.getMatrices().scale((float) scale, (float) scale);
-        context.fill(-padding, -padding, width + padding, totalHeight, 0xD0101010);
-        context.drawBorder(-padding, -padding, width + padding * 2, totalHeight, 0xFFFFAA00);
+        MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         int drawY = 0;
-        context.drawText(this.textRenderer, Text.literal(lines.getFirst()), 0, drawY, UiFormat.YELLOW, true);
+        context.drawText(this.textRenderer, Text.literal(lines.getFirst()), 0, drawY, MmmUi.ACCENT_BRIGHT, true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
-            context.drawText(this.textRenderer, Text.literal(lines.get(i)), 0, drawY, UiFormat.TEXT_PRIMARY, false);
+            context.drawText(this.textRenderer, Text.literal(lines.get(i)), 0, drawY, MmmUi.TEXT, false);
             drawY += lineHeight;
         }
 
-        context.drawText(this.textRenderer, Text.literal("Daily Goal"), 0, drawY + 2, UiFormat.YELLOW, false);
-        context.drawText(this.textRenderer, Text.literal("5.2K/5.2K"), 72, drawY + 2, UiFormat.TEXT_PRIMARY, false);
-        context.drawText(this.textRenderer, Text.literal("100%"), width - this.textRenderer.getWidth("100%"), drawY + 2, UiFormat.BLUE, false);
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        String progressText = UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target());
+        String percentText = dailyGoal.getPercent() + "%";
+        int fillColor = UiFormat.getGoalColor(dailyGoal);
+        context.drawText(this.textRenderer, Text.literal("Daily Goal"), 0, drawY + 2, MmmUi.ACCENT_BRIGHT, false);
+        context.drawText(this.textRenderer, Text.literal(progressText), 72, drawY + 2, MmmUi.TEXT, false);
+        context.drawText(this.textRenderer, Text.literal(percentText), width - this.textRenderer.getWidth(percentText), drawY + 2, fillColor, false);
         int barY = drawY + 13;
-        context.fill(0, barY, width, barY + 6, 0xFF333333);
-        context.fill(0, barY, width, barY + 6, UiFormat.BLUE);
-        context.drawBorder(0, barY, width, 6, 0xFF777777);
+        int fillWidth = dailyGoal.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) dailyGoal.current()) / dailyGoal.target());
+        context.fill(0, barY, width, barY + 6, MmmUi.INSET);
+        context.fill(0, barY, fillWidth, barY + 6, fillColor);
+        context.drawBorder(0, barY, width, 6, MmmUi.BORDER_SOFT);
         context.getMatrices().popMatrix();
     }
 }

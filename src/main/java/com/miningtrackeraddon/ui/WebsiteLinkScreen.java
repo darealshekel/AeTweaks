@@ -17,7 +17,7 @@ import net.minecraft.util.Util;
 
 public class WebsiteLinkScreen extends Screen
 {
-    private static final String WEBSITE_LOGIN_URL = "https://mmm-mu-six.vercel.app/login";
+    private static final String WEBSITE_LOGIN_URL = "https://www.mmmaniacs.com/login";
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 20;
     private static final int CARD_PADDING = 14;
@@ -26,21 +26,19 @@ public class WebsiteLinkScreen extends Screen
     private static final int BUTTON_ROW_GAP = 10;
     private static final int HEADER_TEXT_WIDTH = 460;
     private static final int INPUT_HEIGHT = 24;
-    private static final int COLOR_OVERLAY = 0xC20B0D12;
-    private static final int COLOR_PANEL = 0xD1171A20;
-    private static final int COLOR_CARD = 0xB11B1F27;
-    private static final int COLOR_CARD_SOFT = 0x8F14181F;
-    private static final int COLOR_INSET = 0xA111141A;
-    private static final int COLOR_BORDER = 0xAA4A3538;
-    private static final int COLOR_BORDER_SOFT = 0x66443638;
-    private static final int COLOR_ACCENT = 0xFFE3BD78;
-    private static final int COLOR_ACCENT_SOFT = 0x553A2411;
-    private static final int COLOR_VALUE = 0xFFF5EEE7;
-    private static final int COLOR_LABEL = 0xD2D5C9BF;
-    private static final int COLOR_MUTED = 0x958B8178;
-    private static final int COLOR_SUCCESS = 0xFF7EEDAA;
-    private static final int COLOR_WARNING = 0xFFF4D56A;
-    private static final int COLOR_ERROR = 0xFFFF8D8D;
+    private static final int COLOR_PANEL = MmmUi.PANEL;
+    private static final int COLOR_CARD = MmmUi.CARD;
+    private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
+    private static final int COLOR_INSET = MmmUi.INSET;
+    private static final int COLOR_BORDER = MmmUi.BORDER;
+    private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
+    private static final int COLOR_ACCENT = MmmUi.ACCENT;
+    private static final int COLOR_VALUE = MmmUi.TEXT;
+    private static final int COLOR_LABEL = MmmUi.LABEL;
+    private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
+    private static final int COLOR_WARNING = MmmUi.WARNING;
+    private static final int COLOR_ERROR = MmmUi.ERROR;
 
     private final Screen parent;
     private TextFieldWidget codeField;
@@ -106,7 +104,7 @@ public class WebsiteLinkScreen extends Screen
         Layout layout = computeLayout();
         updateWidgetBounds(layout);
 
-        context.fill(0, 0, this.width, this.height, COLOR_OVERLAY);
+        MmmUi.backdrop(context, this.width, this.height);
         fillCard(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, layout);
@@ -146,7 +144,7 @@ public class WebsiteLinkScreen extends Screen
         drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
         drawWrappedText(
                 context,
-                "Use the same dark-site flow: open the website, generate a temporary code, then confirm the link here.",
+                "Open the MMM website, generate a temporary code, then confirm the link here.",
                 layout.contentX + 2,
                 layout.headerY + 38,
                 Math.min(HEADER_TEXT_WIDTH, layout.contentWidth - 4),
@@ -157,7 +155,7 @@ public class WebsiteLinkScreen extends Screen
     {
         fillCard(context, layout.stepsX, layout.stepsY, layout.stepsWidth, layout.stepsHeight, COLOR_CARD, COLOR_BORDER);
         context.drawText(this.textRenderer, Text.literal("How It Works"), layout.stepsX + CARD_PADDING, layout.stepsY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Three steps, kept tight and readable."), layout.stepsX + CARD_PADDING, layout.stepsY + 23, COLOR_MUTED, false);
+        context.drawText(this.textRenderer, Text.literal("Three direct actions. No filler controls."), layout.stepsX + CARD_PADDING, layout.stepsY + 23, COLOR_MUTED, false);
 
         int rowY = layout.stepsY + 46;
         int rowWidth = layout.stepsWidth - CARD_PADDING * 2;
@@ -283,9 +281,7 @@ public class WebsiteLinkScreen extends Screen
 
     private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
-        context.fill(x, y, x + width, y + height, fillColor);
-        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_ACCENT_SOFT);
-        context.drawBorder(x, y, width, height, borderColor);
+        MmmUi.card(context, x, y, width, height, fillColor, borderColor);
     }
 
     private void updateWidgetBounds(Layout layout)

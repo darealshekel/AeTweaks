@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.miningtrackeraddon.config.Configs;
-import com.miningtrackeraddon.util.UiFormat;
-
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -15,10 +13,16 @@ import net.minecraft.text.Text;
 
 public class NotificationSettingsScreen extends Screen
 {
+    private static final int PANEL_PADDING = 18;
+    private static final int CARD_PADDING = 12;
+    private static final int BUTTON_HEIGHT = 20;
+    private static final int FIELD_HEIGHT = 20;
+
     private final Screen parent;
     private TextFieldWidget thresholdField;
     private TextFieldWidget soundThresholdField;
     private ButtonWidget saveButton;
+    private ButtonWidget cancelButton;
 
     public NotificationSettingsScreen(Screen parent)
     {
@@ -30,16 +34,14 @@ public class NotificationSettingsScreen extends Screen
     protected void init()
     {
         ensureCursorVisible();
-        int centerX = this.width / 2;
-        int fieldWidth = 240;
-        int fieldX = centerX - fieldWidth / 2;
-        int startY = this.height / 2 - 56;
+        this.clearChildren();
+        Layout layout = layout();
 
-        this.thresholdField = createField(fieldX, startY + 24, fieldWidth, joinThresholds(Configs.getNotificationThresholds()));
-        this.soundThresholdField = createField(fieldX, startY + 78, fieldWidth, String.valueOf(Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue()));
+        this.thresholdField = createField(layout.fieldX, layout.thresholdFieldY, layout.fieldWidth, joinThresholds(Configs.getNotificationThresholds()));
+        this.soundThresholdField = createField(layout.fieldX, layout.soundFieldY, layout.fieldWidth, String.valueOf(Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue()));
 
-        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> saveAndClose()).dimensions(centerX - 106, startY + 124, 100, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> close()).dimensions(centerX + 6, startY + 124, 100, 20).build());
+        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> saveAndClose()).dimensions(layout.buttonX, layout.buttonY, layout.buttonWidth, BUTTON_HEIGHT).build());
+        this.cancelButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> close()).dimensions(layout.buttonX + layout.buttonWidth + 10, layout.buttonY, layout.buttonWidth, BUTTON_HEIGHT).build());
         refreshState();
     }
 
@@ -47,20 +49,28 @@ public class NotificationSettingsScreen extends Screen
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
         ensureCursorVisible();
-        context.fill(0, 0, this.width, this.height, 0xFF101010);
-        int centerX = this.width / 2;
-        int panelWidth = 360;
-        int panelHeight = 214;
-        int panelX = centerX - panelWidth / 2;
-        int panelY = this.height / 2 - panelHeight / 2;
+        Layout layout = layout();
+        updateBounds(layout);
+        MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
+        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, MmmUi.TEXT, true);
+        MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 136, 16, "Goal Alerts");
 
-        context.drawBorder(panelX, panelY, panelWidth, panelHeight, 0xFF5F532E);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, panelY + 18, UiFormat.YELLOW);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Set popup milestones like 25,50,75,100 and a separate sound trigger percent."), centerX, panelY + 36, UiFormat.TEXT_MUTED);
-        context.drawText(this.textRenderer, Text.literal("Popup Thresholds"), panelX + 40, panelY + 70, UiFormat.YELLOW, false);
-        context.drawText(this.textRenderer, Text.literal("Sound Threshold"), panelX + 40, panelY + 124, UiFormat.YELLOW, false);
+        MmmUi.card(context, layout.contentX, layout.headerY + 46, layout.contentWidth, 48, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        MmmUi.wrappedText(context, this.textRenderer, "Popup milestones and the sound trigger are saved as real config values.", layout.contentX + CARD_PADDING, layout.headerY + 58, layout.contentWidth - CARD_PADDING * 2, MmmUi.LABEL);
+
+        context.drawText(this.textRenderer, Text.literal("Popup Thresholds"), layout.fieldX, layout.thresholdLabelY, MmmUi.LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Sound Threshold"), layout.fieldX, layout.soundLabelY, MmmUi.LABEL, false);
+        MmmUi.fieldShell(context, layout.fieldX - 1, layout.thresholdFieldY - 1, layout.fieldWidth + 2, FIELD_HEIGHT + 2, this.thresholdField != null && this.thresholdField.isFocused());
+        MmmUi.fieldShell(context, layout.fieldX - 1, layout.soundFieldY - 1, layout.fieldWidth + 2, FIELD_HEIGHT + 2, this.soundThresholdField != null && this.soundThresholdField.isFocused());
 
         super.render(context, mouseX, mouseY, delta);
+
+        if (parseThresholds(this.thresholdField.getText()) == null || parseSound(this.soundThresholdField.getText()) == null)
+        {
+            MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
+            context.drawText(this.textRenderer, Text.literal("Use percentages from 1 to 100, separated with commas."), layout.contentX + 10, layout.errorY + 8, MmmUi.ERROR, false);
+        }
     }
 
     @Override
@@ -72,6 +82,12 @@ public class NotificationSettingsScreen extends Screen
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
+    }
+
+    @Override
+    public boolean shouldPause()
+    {
+        return false;
     }
 
     private void ensureCursorVisible()
@@ -87,6 +103,9 @@ public class NotificationSettingsScreen extends Screen
     {
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(64);
+        field.setDrawsBackground(false);
+        field.setEditableColor(MmmUi.TEXT);
+        field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);
         field.setChangedListener(text -> refreshState());
         this.addDrawableChild(field);
@@ -160,5 +179,77 @@ public class NotificationSettingsScreen extends Screen
         {
             return null;
         }
+    }
+
+    private void updateBounds(Layout layout)
+    {
+        if (this.thresholdField != null)
+        {
+            this.thresholdField.setX(layout.fieldX);
+            this.thresholdField.setY(layout.thresholdFieldY);
+            this.thresholdField.setWidth(layout.fieldWidth);
+        }
+        if (this.soundThresholdField != null)
+        {
+            this.soundThresholdField.setX(layout.fieldX);
+            this.soundThresholdField.setY(layout.soundFieldY);
+            this.soundThresholdField.setWidth(layout.fieldWidth);
+        }
+        if (this.saveButton != null)
+        {
+            this.saveButton.setX(layout.buttonX);
+            this.saveButton.setY(layout.buttonY);
+            this.saveButton.setWidth(layout.buttonWidth);
+        }
+        if (this.cancelButton != null)
+        {
+            this.cancelButton.setX(layout.buttonX + layout.buttonWidth + 10);
+            this.cancelButton.setY(layout.buttonY);
+            this.cancelButton.setWidth(layout.buttonWidth);
+        }
+    }
+
+    private Layout layout()
+    {
+        int panelWidth = Math.min(430, Math.max(340, this.width - 40));
+        int panelHeight = 278;
+        int panelX = (this.width - panelWidth) / 2;
+        int panelY = (this.height - panelHeight) / 2;
+        int contentX = panelX + PANEL_PADDING;
+        int contentWidth = panelWidth - PANEL_PADDING * 2;
+        int headerY = panelY + PANEL_PADDING;
+        int fieldX = contentX + CARD_PADDING;
+        int fieldWidth = contentWidth - CARD_PADDING * 2;
+        int thresholdLabelY = headerY + 112;
+        int thresholdFieldY = thresholdLabelY + 14;
+        int soundLabelY = thresholdFieldY + 36;
+        int soundFieldY = soundLabelY + 14;
+        int totalButtonWidth = Math.min(232, contentWidth - CARD_PADDING * 2);
+        int buttonWidth = (totalButtonWidth - 10) / 2;
+        int buttonX = contentX + (contentWidth - totalButtonWidth) / 2;
+        int buttonY = soundFieldY + 36;
+        int errorY = buttonY + 30;
+        return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentWidth, headerY, fieldX, fieldWidth, thresholdLabelY, thresholdFieldY, soundLabelY, soundFieldY, buttonX, buttonY, buttonWidth, errorY);
+    }
+
+    private record Layout(
+            int panelX,
+            int panelY,
+            int panelWidth,
+            int panelHeight,
+            int contentX,
+            int contentWidth,
+            int headerY,
+            int fieldX,
+            int fieldWidth,
+            int thresholdLabelY,
+            int thresholdFieldY,
+            int soundLabelY,
+            int soundFieldY,
+            int buttonX,
+            int buttonY,
+            int buttonWidth,
+            int errorY)
+    {
     }
 }

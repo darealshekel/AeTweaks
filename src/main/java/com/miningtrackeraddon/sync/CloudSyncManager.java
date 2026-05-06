@@ -3,7 +3,9 @@ package com.miningtrackeraddon.sync;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.miningtrackeraddon.Reference;
 import com.miningtrackeraddon.MiningTrackerAddon;
 import com.miningtrackeraddon.config.Configs;
@@ -12,6 +14,7 @@ import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.tracker.MiningValidationTracker;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 import com.miningtrackeraddon.util.UiFormat;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -28,10 +31,7 @@ public final class CloudSyncManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
-    private static final long LIVE_BLOCK_SYNC_INTERVAL_MS = 3_000L;
-    private static final long IDLE_BLOCK_SYNC_INTERVAL_MS = 1_000L;
-    private static final long AETERNUM_SCOREBOARD_SYNC_INTERVAL_MS = 3_000L;
+    private static final long AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
@@ -63,14 +63,18 @@ public final class CloudSyncManager
             return;
         }
 
-        if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS)
+        if (isSyncCadenceDue(now))
         {
             syncHeartbeat();
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        latestLeaderboardSnapshot = AeternumLeaderboardReader.read(client);
-        maybeBootstrapFromLeaderboardSnapshot(client, now);
+        if (now - lastAeternumScoreboardSyncMs >= AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS)
+        {
+            lastAeternumScoreboardSyncMs = now;
+            latestLeaderboardSnapshot = AeternumLeaderboardReader.read(client);
+            maybeBootstrapFromLeaderboardSnapshot(client, now);
+        }
 
         if (latestLeaderboardSnapshot != null && syncStatus != SyncStatus.SYNCING && syncStatus != SyncStatus.SYNCED)
         {
@@ -81,12 +85,9 @@ public final class CloudSyncManager
 
         String currentLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
         if (latestLeaderboardSnapshot != null
-                && now - lastAeternumScoreboardSyncMs >= AETERNUM_SCOREBOARD_SYNC_INTERVAL_MS
                 && currentLeaderboardFingerprint.equals(lastSuccessfulLeaderboardFingerprint) == false)
         {
-            lastAeternumScoreboardSyncMs = now;
-            SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-            queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
+            queueCurrentLivePayloadIfDue(now);
         }
     }
 
@@ -97,7 +98,14 @@ public final class CloudSyncManager
             return;
         }
 
-        lastHeartbeatMs = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        if (isSyncCadenceDue(now) == false)
+        {
+            return;
+        }
+
+        lastHeartbeatMs = now;
+        lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
     }
@@ -131,7 +139,7 @@ public final class CloudSyncManager
         boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
         boolean hasSessionToken = hasSessionToken(client);
 
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+        if (MmmDebugLogger.shouldLog("cloud-sync-check", 5_000L))
         {
             MiningTrackerAddon.LOGGER.info(
                     "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} playerUuid={} playerName={} sourceSlug={} sourceName={} totalMined={} sessionMined={} targetUrl={}",
@@ -158,14 +166,7 @@ public final class CloudSyncManager
             return;
         }
 
-        long interval = MiningStats.isSessionActive() ? LIVE_BLOCK_SYNC_INTERVAL_MS : IDLE_BLOCK_SYNC_INTERVAL_MS;
-        if (now - lastLiveBlockSyncMs >= interval)
-        {
-            lastLiveBlockSyncMs = now;
-            lastHeartbeatMs = now;
-            SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-            queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
-        }
+        queueCurrentLivePayloadIfDue(now);
     }
 
     static void onQueued(SyncItemType type, JsonObject payload)
@@ -194,6 +195,9 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
+        applySyncResponse(responseBody);
+        Configs.websiteLastSuccessfulSyncMs = System.currentTimeMillis();
+        Configs.saveToFile();
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
         {
@@ -328,6 +332,8 @@ public final class CloudSyncManager
         latestLeaderboardSnapshot = null;
         syncStatus = SyncStatus.CONNECTED;
         syncStatusDetail = "";
+        lastHeartbeatMs = 0L;
+        lastLiveBlockSyncMs = 0L;
         lastAeternumScoreboardSyncMs = 0L;
         lastQueuedLiveFingerprint = null;
         lastSuccessfulLiveFingerprint = null;
@@ -345,6 +351,35 @@ public final class CloudSyncManager
     public static String getLastPayloadSourceName()
     {
         return lastPayloadSourceName;
+    }
+
+    public static long getSyncIntervalMs()
+    {
+        return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
+    }
+
+    public static String getSyncTier()
+    {
+        return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
+    }
+
+    private static boolean isSyncCadenceDue(long now)
+    {
+        long interval = getSyncIntervalMs();
+        return lastLiveBlockSyncMs <= 0L || now - lastLiveBlockSyncMs >= interval;
+    }
+
+    private static void queueCurrentLivePayloadIfDue(long now)
+    {
+        if (isSyncCadenceDue(now) == false)
+        {
+            return;
+        }
+
+        lastLiveBlockSyncMs = now;
+        lastHeartbeatMs = now;
+        SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
     }
 
     private static void queueLivePayload(JsonObject payload)
@@ -367,6 +402,97 @@ public final class CloudSyncManager
 
         lastQueuedLiveFingerprint = fingerprint;
         SyncQueueManager.enqueueCloudLiveState(payload);
+    }
+
+    private static void applySyncResponse(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return;
+        }
+
+        try
+        {
+            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            boolean changed = false;
+
+            JsonObject syncPolicy = getObject(root, "sync_policy");
+            if (syncPolicy != null)
+            {
+                String tier = Configs.normalizeWebsiteSyncTier(getString(syncPolicy, "tier", Configs.websiteSyncTier));
+                long intervalMs = Configs.normalizeWebsiteSyncIntervalMs(getLong(syncPolicy, "interval_ms", Configs.websiteSyncIntervalMs));
+                if (tier.equals(Configs.websiteSyncTier) == false)
+                {
+                    Configs.websiteSyncTier = tier;
+                    changed = true;
+                }
+                if (intervalMs != Configs.websiteSyncIntervalMs)
+                {
+                    Configs.websiteSyncIntervalMs = intervalMs;
+                    changed = true;
+                }
+            }
+
+            JsonObject playerProfile = getObject(root, "player_profile");
+            if (playerProfile != null)
+            {
+                long globalTotal = getLong(playerProfile, "global_total_blocks", Configs.websiteGlobalTotalBlocks);
+                if (globalTotal != Configs.websiteGlobalTotalBlocks)
+                {
+                    Configs.websiteGlobalTotalBlocks = globalTotal;
+                    Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                Configs.saveToFile();
+            }
+        }
+        catch (Exception ignored)
+        {
+        }
+    }
+
+    private static JsonObject getObject(JsonObject root, String key)
+    {
+        if (root == null || root.has(key) == false)
+        {
+            return null;
+        }
+
+        JsonElement element = root.get(key);
+        return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+    }
+
+    private static String getString(JsonObject object, String key, String fallback)
+    {
+        if (object == null || object.has(key) == false)
+        {
+            return fallback;
+        }
+
+        JsonElement element = object.get(key);
+        return element != null && element.isJsonPrimitive() ? element.getAsString() : fallback;
+    }
+
+    private static long getLong(JsonObject object, String key, long fallback)
+    {
+        if (object == null || object.has(key) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            JsonElement element = object.get(key);
+            return element != null && element.isJsonPrimitive() ? element.getAsLong() : fallback;
+        }
+        catch (Exception ignored)
+        {
+            return fallback;
+        }
     }
 
     private static void touchHealthy()
@@ -442,7 +568,20 @@ public final class CloudSyncManager
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
+        payload.add("mining_records", buildMiningRecords());
         payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
+
+        JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
+        if (currentWorldBlockBreakdown != null)
+        {
+            payload.add("current_world_block_breakdown", currentWorldBlockBreakdown);
+        }
+
+        JsonObject serverPlayerBlockBreakdowns = ServerPlayerBlockBreakdownScanner.scan(client, worldInfo);
+        if (serverPlayerBlockBreakdowns != null)
+        {
+            payload.add("server_player_block_breakdowns", serverPlayerBlockBreakdowns);
+        }
 
         JsonObject sourceScan = buildSourceScan(client, worldInfo);
         if (sourceScan != null)
@@ -495,7 +634,25 @@ public final class CloudSyncManager
     {
         JsonObject totals = new JsonObject();
         totals.addProperty("total_blocks", Configs.totalBlocksMined);
+        totals.addProperty("daily_blocks_mined", MiningStats.getDailyBlocksMined());
+        totals.addProperty("weekly_blocks_mined", MiningStats.getWeeklyBlocksMined());
+        totals.addProperty("personal_record_daily_blocks", MiningStats.getPersonalRecordDailyBlocks());
+        totals.addProperty("personal_record_weekly_blocks", MiningStats.getPersonalRecordWeeklyBlocks());
+        totals.addProperty("fastest_100k_seconds", MiningStats.getFastest100kSeconds());
         return totals;
+    }
+
+    private static JsonObject buildMiningRecords()
+    {
+        JsonObject records = new JsonObject();
+        records.addProperty("daily_blocks_mined", MiningStats.getDailyBlocksMined());
+        records.addProperty("weekly_blocks_mined", MiningStats.getWeeklyBlocksMined());
+        records.addProperty("personal_record_daily_blocks", MiningStats.getPersonalRecordDailyBlocks());
+        records.addProperty("personal_record_weekly_blocks", MiningStats.getPersonalRecordWeeklyBlocks());
+        records.addProperty("fastest_100k_seconds", MiningStats.getFastest100kSeconds());
+        records.addProperty("fastest_100k_started_at", Configs.fastest100kStartedAtMs > 0L ? toIso(Configs.fastest100kStartedAtMs) : null);
+        records.addProperty("fastest_100k_finished_at", Configs.fastest100kFinishedAtMs > 0L ? toIso(Configs.fastest100kFinishedAtMs) : null);
+        return records;
     }
 
     private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo)
@@ -690,6 +847,11 @@ public final class CloudSyncManager
         syncedStats.addProperty("current_project_goal", (String) null);
         syncedStats.addProperty("daily_progress", dailyGoal.current());
         syncedStats.addProperty("daily_target", dailyGoal.target());
+        syncedStats.addProperty("daily_blocks_mined", MiningStats.getDailyBlocksMined());
+        syncedStats.addProperty("weekly_blocks_mined", MiningStats.getWeeklyBlocksMined());
+        syncedStats.addProperty("personal_record_daily_blocks", MiningStats.getPersonalRecordDailyBlocks());
+        syncedStats.addProperty("personal_record_weekly_blocks", MiningStats.getPersonalRecordWeeklyBlocks());
+        syncedStats.addProperty("fastest_100k_seconds", MiningStats.getFastest100kSeconds());
         return syncedStats;
     }
 
@@ -850,6 +1012,21 @@ public final class CloudSyncManager
             minimal.add("current_world_totals", payload.get("current_world_totals"));
         }
 
+        if (payload.has("mining_records"))
+        {
+            minimal.add("mining_records", payload.get("mining_records"));
+        }
+
+        if (payload.has("current_world_block_breakdown"))
+        {
+            minimal.addProperty("current_world_block_breakdown", BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown")));
+        }
+
+        if (payload.has("server_player_block_breakdowns"))
+        {
+            minimal.addProperty("server_player_block_breakdowns", ServerPlayerBlockBreakdownScanner.fingerprint(payload.getAsJsonObject("server_player_block_breakdowns")));
+        }
+
         if (payload.has("source_scan"))
         {
             minimal.add("source_scan", payload.get("source_scan"));
@@ -903,7 +1080,7 @@ public final class CloudSyncManager
         lastPayloadSourceKey = sourceKey;
         lastPayloadSourceName = sourceName;
 
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        if (MmmDebugLogger.shouldLog("cloud-sync-payload-created", 5_000L) == false)
         {
             return;
         }

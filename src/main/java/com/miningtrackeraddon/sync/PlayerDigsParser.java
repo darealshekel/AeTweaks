@@ -1,8 +1,8 @@
 package com.miningtrackeraddon.sync;
 
 import com.miningtrackeraddon.MiningTrackerAddon;
-import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -291,7 +291,7 @@ public final class PlayerDigsParser
 
     private static void debugLine(String objectiveTitle, ScoreboardReader.ScoreboardLine line, boolean accepted, String reason)
     {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        if (MmmDebugLogger.shouldLog("player-digs-line", 5_000L) == false)
         {
             return;
         }

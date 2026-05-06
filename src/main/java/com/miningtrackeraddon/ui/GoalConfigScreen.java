@@ -13,10 +13,16 @@ import net.minecraft.text.Text;
 
 public class GoalConfigScreen extends Screen
 {
+    private static final int PANEL_PADDING = 18;
+    private static final int CARD_PADDING = 12;
+    private static final int BUTTON_HEIGHT = 20;
+    private static final int FIELD_HEIGHT = 20;
+
     private final Screen parent;
     private TextFieldWidget dailyGoalField;
     private TextFieldWidget dailyProgressField;
     private ButtonWidget saveButton;
+    private ButtonWidget cancelButton;
 
     public GoalConfigScreen(Screen parent)
     {
@@ -28,16 +34,14 @@ public class GoalConfigScreen extends Screen
     protected void init()
     {
         ensureCursorVisible();
-        int centerX = this.width / 2;
-        int fieldWidth = 180;
-        int inputX = centerX - fieldWidth / 2;
-        int topY = this.height / 2 - 38;
+        this.clearChildren();
+        Layout layout = layout();
 
-        this.dailyGoalField = createNumericField(inputX, topY + 16, fieldWidth, String.valueOf(Configs.Generic.DAILY_GOAL.getIntegerValue()));
-        this.dailyProgressField = createNumericField(inputX, topY + 60, fieldWidth, String.valueOf(Configs.dailyProgress));
+        this.dailyGoalField = createNumericField(layout.fieldX, layout.goalFieldY, layout.fieldWidth, String.valueOf(Configs.Generic.DAILY_GOAL.getIntegerValue()));
+        this.dailyProgressField = createNumericField(layout.fieldX, layout.progressFieldY, layout.fieldWidth, String.valueOf(Configs.dailyProgress));
 
-        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> saveAndClose()).dimensions(centerX - 104, topY + 100, 100, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> close()).dimensions(centerX + 4, topY + 100, 100, 20).build());
+        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), button -> saveAndClose()).dimensions(layout.buttonX, layout.buttonY, layout.buttonWidth, BUTTON_HEIGHT).build());
+        this.cancelButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Cancel"), button -> close()).dimensions(layout.buttonX + layout.buttonWidth + 10, layout.buttonY, layout.buttonWidth, BUTTON_HEIGHT).build());
         refreshSaveState();
     }
 
@@ -45,22 +49,32 @@ public class GoalConfigScreen extends Screen
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
         ensureCursorVisible();
-        context.fill(0, 0, this.width, this.height, 0xFF101010);
-        int centerX = this.width / 2;
-        int fieldWidth = 180;
-        int inputX = centerX - fieldWidth / 2;
-        int topY = this.height / 2 - 58;
+        Layout layout = layout();
+        updateBounds(layout);
+        MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
+        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, MmmUi.TEXT, true);
+        MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 116, 16, "Daily Target");
 
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, topY, UiFormat.YELLOW);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Edit the goal target and current daily progress."), centerX, topY + 16, UiFormat.TEXT_MUTED);
-        context.drawText(this.textRenderer, Text.literal("Daily Goal"), inputX, topY + 40, UiFormat.YELLOW, false);
-        context.drawText(this.textRenderer, Text.literal("Current Progress"), inputX, topY + 84, UiFormat.YELLOW, false);
+        int summaryY = layout.headerY + 46;
+        MmmUi.card(context, layout.contentX, summaryY, layout.contentWidth, 54, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
+        context.drawText(this.textRenderer, Text.literal("Progress"), layout.contentX + CARD_PADDING, summaryY + 10, MmmUi.LABEL, false);
+        context.drawText(this.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), layout.contentX + CARD_PADDING, summaryY + 24, MmmUi.TEXT, false);
+        String percent = progress.getPercent() + "%";
+        context.drawText(this.textRenderer, Text.literal(percent), layout.contentX + layout.contentWidth - CARD_PADDING - this.textRenderer.getWidth(percent), summaryY + 24, MmmUi.ACCENT_BRIGHT, false);
+
+        context.drawText(this.textRenderer, Text.literal("Daily Goal"), layout.fieldX, layout.goalLabelY, MmmUi.LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Current Progress"), layout.fieldX, layout.progressLabelY, MmmUi.LABEL, false);
+        MmmUi.fieldShell(context, layout.fieldX - 1, layout.goalFieldY - 1, layout.fieldWidth + 2, FIELD_HEIGHT + 2, this.dailyGoalField != null && this.dailyGoalField.isFocused());
+        MmmUi.fieldShell(context, layout.fieldX - 1, layout.progressFieldY - 1, layout.fieldWidth + 2, FIELD_HEIGHT + 2, this.dailyProgressField != null && this.dailyProgressField.isFocused());
 
         super.render(context, mouseX, mouseY, delta);
 
         if (!isPositive(this.dailyGoalField.getText()) || !isNonNegative(this.dailyProgressField.getText()))
         {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Goal must be above 0. Progress must be 0 or more."), centerX, topY + 160, UiFormat.RED);
+            MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
+            context.drawText(this.textRenderer, Text.literal("Goal must be above 0. Progress must be 0 or more."), layout.contentX + 10, layout.errorY + 8, MmmUi.ERROR, false);
         }
     }
 
@@ -73,6 +87,12 @@ public class GoalConfigScreen extends Screen
     @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
+    }
+
+    @Override
+    public boolean shouldPause()
+    {
+        return false;
     }
 
     private void ensureCursorVisible()
@@ -88,6 +108,9 @@ public class GoalConfigScreen extends Screen
     {
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(12);
+        field.setDrawsBackground(false);
+        field.setEditableColor(MmmUi.TEXT);
+        field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);
         field.setChangedListener(text -> {
             String sanitized = text.replaceAll("[^0-9]", "");
@@ -142,5 +165,77 @@ public class GoalConfigScreen extends Screen
         {
             return false;
         }
+    }
+
+    private void updateBounds(Layout layout)
+    {
+        if (this.dailyGoalField != null)
+        {
+            this.dailyGoalField.setX(layout.fieldX);
+            this.dailyGoalField.setY(layout.goalFieldY);
+            this.dailyGoalField.setWidth(layout.fieldWidth);
+        }
+        if (this.dailyProgressField != null)
+        {
+            this.dailyProgressField.setX(layout.fieldX);
+            this.dailyProgressField.setY(layout.progressFieldY);
+            this.dailyProgressField.setWidth(layout.fieldWidth);
+        }
+        if (this.saveButton != null)
+        {
+            this.saveButton.setX(layout.buttonX);
+            this.saveButton.setY(layout.buttonY);
+            this.saveButton.setWidth(layout.buttonWidth);
+        }
+        if (this.cancelButton != null)
+        {
+            this.cancelButton.setX(layout.buttonX + layout.buttonWidth + 10);
+            this.cancelButton.setY(layout.buttonY);
+            this.cancelButton.setWidth(layout.buttonWidth);
+        }
+    }
+
+    private Layout layout()
+    {
+        int panelWidth = Math.min(420, Math.max(330, this.width - 40));
+        int panelHeight = 274;
+        int panelX = (this.width - panelWidth) / 2;
+        int panelY = (this.height - panelHeight) / 2;
+        int contentX = panelX + PANEL_PADDING;
+        int contentWidth = panelWidth - PANEL_PADDING * 2;
+        int headerY = panelY + PANEL_PADDING;
+        int fieldX = contentX + CARD_PADDING;
+        int fieldWidth = contentWidth - CARD_PADDING * 2;
+        int goalLabelY = headerY + 116;
+        int goalFieldY = goalLabelY + 14;
+        int progressLabelY = goalFieldY + 32;
+        int progressFieldY = progressLabelY + 14;
+        int totalButtonWidth = Math.min(230, contentWidth - CARD_PADDING * 2);
+        int buttonWidth = (totalButtonWidth - 10) / 2;
+        int buttonX = contentX + (contentWidth - totalButtonWidth) / 2;
+        int buttonY = progressFieldY + 36;
+        int errorY = buttonY + 30;
+        return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentWidth, headerY, fieldX, fieldWidth, goalLabelY, goalFieldY, progressLabelY, progressFieldY, buttonX, buttonY, buttonWidth, errorY);
+    }
+
+    private record Layout(
+            int panelX,
+            int panelY,
+            int panelWidth,
+            int panelHeight,
+            int contentX,
+            int contentWidth,
+            int headerY,
+            int fieldX,
+            int fieldWidth,
+            int goalLabelY,
+            int goalFieldY,
+            int progressLabelY,
+            int progressFieldY,
+            int buttonX,
+            int buttonY,
+            int buttonWidth,
+            int errorY)
+    {
     }
 }

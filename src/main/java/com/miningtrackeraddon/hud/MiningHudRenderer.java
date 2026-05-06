@@ -10,6 +10,7 @@ import com.miningtrackeraddon.sync.CloudSyncManager;
 import com.miningtrackeraddon.sync.DigsSyncManager;
 import com.miningtrackeraddon.tracker.GoalNotificationManager;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -18,18 +19,16 @@ import net.minecraft.text.Text;
 
 public final class MiningHudRenderer
 {
-    private static final int LINE_BOX_COLOR = 0xA111141A;
-    private static final int LINE_BOX_BORDER_COLOR = 0x66443638;
-    private static final int SYNC_OK_COLOR = 0xFF2ECC71;
-    private static final int SYNC_FAIL_COLOR = 0xFFE74C3C;
-    private static final int BBOX_FILL_COLOR = 0xD1171A20;
-    private static final int BBOX_ACCENT_COLOR = 0x553A2411;
-    private static final int BBOX_BORDER_COLOR = 0xAA4A3538;
-    private static final int HUD_TITLE_COLOR = 0xFFE3BD78;
-    private static final int HUD_TEXT_COLOR = 0xFFF5EEE7;
-    private static final int HUD_MUTED_COLOR = 0xD2D5C9BF;
-    private static final int GOAL_BAR_BG = 0xFF1A1514;
-    private static final int GOAL_BAR_BORDER = 0xAA4A3538;
+    private static final int LINE_BOX_COLOR = MmmUi.INSET;
+    private static final int LINE_BOX_BORDER_COLOR = MmmUi.BORDER_SOFT;
+    private static final int SYNC_OK_COLOR = MmmUi.SUCCESS;
+    private static final int SYNC_FAIL_COLOR = MmmUi.ERROR;
+    private static final int BBOX_FILL_COLOR = MmmUi.PANEL;
+    private static final int BBOX_BORDER_COLOR = MmmUi.BORDER;
+    private static final int HUD_TITLE_COLOR = MmmUi.ACCENT_BRIGHT;
+    private static final int HUD_TEXT_COLOR = MmmUi.TEXT;
+    private static final int GOAL_BAR_BG = MmmUi.INSET;
+    private static final int GOAL_BAR_BORDER = MmmUi.BORDER;
 
     private MiningHudRenderer()
     {
@@ -56,6 +55,9 @@ public final class MiningHudRenderer
         {
             lines.add("World Total: " + UiFormat.formatBlocks(MiningStats.getCurrentSourceTotalMined()));
             lines.add("Session Total: " + UiFormat.formatBlocks(MiningStats.getSessionBlocksMined()));
+            lines.add("Today / Week: " + UiFormat.formatCompact(MiningStats.getDailyBlocksMined()) + " / " + UiFormat.formatCompact(MiningStats.getWeeklyBlocksMined()));
+            lines.add("PR Day / Week: " + UiFormat.formatCompact(MiningStats.getPersonalRecordDailyBlocks()) + " / " + UiFormat.formatCompact(MiningStats.getPersonalRecordWeeklyBlocks()));
+            lines.add("Fastest 100K: " + MiningStats.getFastest100kClock());
         }
         if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
@@ -98,9 +100,7 @@ public final class MiningHudRenderer
             int bboxY = -2;
             int bboxW = width + padding * 2;
             int bboxH = lines.size() * lineHeight + extraHeight + 4;
-            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, BBOX_FILL_COLOR);
-            context.fill(bboxX + 1, bboxY + 1, bboxX + bboxW - 1, bboxY + 2, BBOX_ACCENT_COLOR);
-            context.drawBorder(bboxX, bboxY, bboxW, bboxH, BBOX_BORDER_COLOR);
+            MmmUi.card(context, bboxX, bboxY, bboxW, bboxH, BBOX_FILL_COLOR, BBOX_BORDER_COLOR);
         }
 
         int drawY = 0;
@@ -108,13 +108,19 @@ public final class MiningHudRenderer
         boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
         String title = lines.getFirst();
         int titleTextWidth = client.textRenderer.getWidth(title);
-        drawLineBox(context, 0, drawY, titleTextWidth + 12);
+        if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
+        {
+            drawLineBox(context, 0, drawY, titleTextWidth + 12);
+        }
         drawSyncIndicator(context, 3, drawY + 5, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
         context.drawText(client.textRenderer, Text.literal(title), 10, drawY, HUD_TITLE_COLOR, true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
-            drawLineBox(context, 0, drawY, client.textRenderer.getWidth(lines.get(i)));
+            if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
+            {
+                drawLineBox(context, 0, drawY, client.textRenderer.getWidth(lines.get(i)));
+            }
             context.drawText(client.textRenderer, Text.literal(lines.get(i)), 0, drawY, HUD_TEXT_COLOR, false);
             drawY += lineHeight;
         }
@@ -135,6 +141,9 @@ public final class MiningHudRenderer
         lines.add("Project: Example Project | 12.3K blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3K blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Session Total: 890 blocks");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Today / Week: 12.3K / 84.2K");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("PR Day / Week: 21.5K / 120K");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Fastest 100K: 8h 20m");
         if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
             lines.add("Blocks/hr: 12.3K blocks/hr");
@@ -186,7 +195,7 @@ public final class MiningHudRenderer
     private static void drawLineBox(DrawContext context, int x, int y, int textWidth)
     {
         context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, LINE_BOX_COLOR);
-        context.fill(x - 3, y - 1, x + textWidth + 4, y, BBOX_ACCENT_COLOR);
+        context.fill(x - 3, y - 1, x + textWidth + 4, y, MmmUi.ACCENT_SOFT);
         context.drawBorder(x - 4, y - 2, textWidth + 9, 13, LINE_BOX_BORDER_COLOR);
     }
 

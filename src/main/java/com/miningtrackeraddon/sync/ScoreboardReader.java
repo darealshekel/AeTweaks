@@ -27,6 +27,7 @@ public final class ScoreboardReader
         return scoreboard.getObjectives().stream()
                 .map(objective -> new ObjectiveSnapshot(
                         cleanup(objective.getDisplayName().getString()),
+                        objective.getCriterion().getName(),
                         sidebar != null && objective.equals(sidebar),
                         scoreboard.getScoreboardEntries(objective).stream()
                         .map(ScoreboardReader::toLine)
@@ -72,7 +73,7 @@ public final class ScoreboardReader
                         .trim();
     }
 
-    public record ObjectiveSnapshot(String title, boolean sidebar, List<ScoreboardLine> lines) {}
+    public record ObjectiveSnapshot(String title, String criterionName, boolean sidebar, List<ScoreboardLine> lines) {}
 
     public record ScoreboardLine(String owner, String cleaned, int scoreValue) {}
 }

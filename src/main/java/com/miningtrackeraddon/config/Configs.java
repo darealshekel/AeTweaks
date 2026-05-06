@@ -3,7 +3,9 @@ package com.miningtrackeraddon.config;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
@@ -51,6 +53,7 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
+        public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", "#55FF55", "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -59,6 +62,26 @@ public class Configs implements IConfigHandler
         public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
+                WEBSITE_SYNC_ENABLED,
+                TOTAL_DIGS_SYNC_ENABLED,
+                WEBSITE_SYNC_DEBUG,
+                ABBREVIATED_NUMBERS,
+                DAILY_GOAL,
+                NOTIFICATION_THRESHOLDS,
+                SOUND_ALERT_THRESHOLD,
+                HUD_X,
+                HUD_Y,
+                HUD_ALIGNMENT,
+                HUD_SCALE,
+                HUD_TEXT_BACKGROUND,
+                BLOCK_ESP_COLOR_MODE,
+                BLOCK_ESP_HEX_COLOR,
+                BLOCK_ESP_RENDER_MODE,
+                BLOCK_ESP_OPACITY,
+                BLOCK_ESP_RAINBOW_SPEED
+        );
+
+        public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
@@ -76,6 +99,7 @@ public class Configs implements IConfigHandler
                 HUD_Y,
                 HUD_ALIGNMENT,
                 HUD_SCALE,
+                HUD_TEXT_BACKGROUND,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -85,8 +109,22 @@ public class Configs implements IConfigHandler
         );
     }
 
+    public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = 300_000L;
+    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 150_000L;
+    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
+    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
+    public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = 300_000L;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();
+    public static long dailyBlocksMined = 0L;
+    public static String dailyBlocksDate = "";
+    public static long weeklyBlocksMined = 0L;
+    public static String weeklyBlocksWeek = "";
+    public static long personalRecordDailyBlocks = 0L;
+    public static long personalRecordWeeklyBlocks = 0L;
+    public static long fastest100kMs = 0L;
+    public static long fastest100kStartedAtMs = 0L;
+    public static long fastest100kFinishedAtMs = 0L;
     public static String activeProjectId = "";
     public static String cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
     public static String cloudSyncSecret = "";
@@ -94,9 +132,16 @@ public class Configs implements IConfigHandler
     public static String websiteLinkedMinecraftUuid = "";
     public static String websiteLinkedMinecraftUsername = "";
     public static long websiteLinkedAtMs = 0L;
+    public static String websiteSyncTier = "free";
+    public static long websiteSyncIntervalMs = DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
+    public static long websiteGlobalTotalBlocks = 0L;
+    public static long websiteGlobalTotalUpdatedAtMs = 0L;
+    public static long websiteLastSuccessfulSyncMs = 0L;
     public static long totalBlocksMined = 0L;
     public static final List<ProjectEntry> PROJECTS = new ArrayList<>();
     public static final List<WorldStatsEntry> WORLD_STATS = new ArrayList<>();
+    public static final String BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS = "minecraft_stats";
+    public static final String BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED = "local_observed";
 
     public static void onConfigLoaded()
     {
@@ -127,11 +172,39 @@ public class Configs implements IConfigHandler
 
         dailyProgress = Math.max(0L, dailyProgress);
         dailyGoalLastResetMs = Math.max(0L, dailyGoalLastResetMs);
+        dailyBlocksMined = Math.max(0L, dailyBlocksMined);
+        dailyBlocksDate = dailyBlocksDate == null ? "" : dailyBlocksDate.trim();
+        weeklyBlocksMined = Math.max(0L, weeklyBlocksMined);
+        weeklyBlocksWeek = weeklyBlocksWeek == null ? "" : weeklyBlocksWeek.trim();
+        personalRecordDailyBlocks = Math.max(personalRecordDailyBlocks, dailyBlocksMined);
+        personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, weeklyBlocksMined);
+        fastest100kMs = Math.max(0L, fastest100kMs);
+        fastest100kStartedAtMs = Math.max(0L, fastest100kStartedAtMs);
+        fastest100kFinishedAtMs = Math.max(0L, fastest100kFinishedAtMs);
         totalBlocksMined = Math.max(0L, totalBlocksMined);
         boolean migratedLegacySyncEndpoint = isLegacySyncEndpoint(cloudSyncEndpoint);
         if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank() || migratedLegacySyncEndpoint)
         {
             cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
+        }
+
+        for (WorldStatsEntry entry : WORLD_STATS)
+        {
+            if (entry.worldId == null || entry.worldId.isBlank())
+            {
+                entry.worldId = "default";
+            }
+            if (entry.displayName == null || entry.displayName.isBlank())
+            {
+                entry.displayName = entry.worldId;
+            }
+            entry.kind = entry.kind == null || entry.kind.isBlank() ? "unknown" : entry.kind;
+            entry.host = entry.host == null ? "" : entry.host;
+            entry.totalBlocks = Math.max(0L, entry.totalBlocks);
+            entry.lastSeenAt = Math.max(0L, entry.lastSeenAt);
+            entry.blockBreakdown = sanitizeBlockBreakdown(entry.blockBreakdown);
+            entry.blockBreakdownSource = sanitizeBlockBreakdownSource(entry.blockBreakdownSource);
+            entry.blockBreakdownUpdatedAtMs = Math.max(0L, entry.blockBreakdownUpdatedAtMs);
         }
         cloudSyncSecret = cloudSyncSecret == null ? "" : cloudSyncSecret.trim();
         if (cloudClientId == null || cloudClientId.isBlank())
@@ -142,6 +215,11 @@ public class Configs implements IConfigHandler
         websiteLinkedMinecraftUuid = websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid.trim().toLowerCase();
         websiteLinkedMinecraftUsername = websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername.trim();
         websiteLinkedAtMs = Math.max(0L, websiteLinkedAtMs);
+        websiteSyncTier = normalizeWebsiteSyncTier(websiteSyncTier);
+        websiteSyncIntervalMs = normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs);
+        websiteGlobalTotalBlocks = Math.max(0L, websiteGlobalTotalBlocks);
+        websiteGlobalTotalUpdatedAtMs = Math.max(0L, websiteGlobalTotalUpdatedAtMs);
+        websiteLastSuccessfulSyncMs = Math.max(0L, websiteLastSuccessfulSyncMs);
 
         List<Integer> thresholds = getNotificationThresholds();
         thresholds.removeIf(value -> value <= 0 || value > 100);
@@ -185,7 +263,7 @@ public class Configs implements IConfigHandler
             if (element != null && element.isJsonObject())
             {
                 JsonObject root = element.getAsJsonObject();
-                ConfigUtils.readConfigBase(root, "Generic", Generic.OPTIONS);
+                ConfigUtils.readConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
                 ConfigUtils.readHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
                 ConfigUtils.readHotkeyToggleOptions(root, "TweakHotkeys", "TweakToggles", FeatureToggle.VALUES);
                 readCustomState(root);
@@ -203,7 +281,7 @@ public class Configs implements IConfigHandler
         if ((dir.exists() && dir.isDirectory()) || dir.mkdirs())
         {
             JsonObject root = new JsonObject();
-            ConfigUtils.writeConfigBase(root, "Generic", Generic.OPTIONS);
+            ConfigUtils.writeConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
             ConfigUtils.writeHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
             ConfigUtils.writeHotkeyToggleOptions(root, "TweakHotkeys", "TweakToggles", FeatureToggle.VALUES);
             writeCustomState(root);
@@ -331,6 +409,15 @@ public class Configs implements IConfigHandler
             JsonObject state = root.getAsJsonObject("State");
             if (state.has("dailyProgress")) dailyProgress = state.get("dailyProgress").getAsLong();
             if (state.has("dailyGoalLastResetMs")) dailyGoalLastResetMs = state.get("dailyGoalLastResetMs").getAsLong();
+            if (state.has("dailyBlocksMined")) dailyBlocksMined = state.get("dailyBlocksMined").getAsLong();
+            if (state.has("dailyBlocksDate")) dailyBlocksDate = state.get("dailyBlocksDate").getAsString();
+            if (state.has("weeklyBlocksMined")) weeklyBlocksMined = state.get("weeklyBlocksMined").getAsLong();
+            if (state.has("weeklyBlocksWeek")) weeklyBlocksWeek = state.get("weeklyBlocksWeek").getAsString();
+            if (state.has("personalRecordDailyBlocks")) personalRecordDailyBlocks = state.get("personalRecordDailyBlocks").getAsLong();
+            if (state.has("personalRecordWeeklyBlocks")) personalRecordWeeklyBlocks = state.get("personalRecordWeeklyBlocks").getAsLong();
+            if (state.has("fastest100kMs")) fastest100kMs = state.get("fastest100kMs").getAsLong();
+            if (state.has("fastest100kStartedAtMs")) fastest100kStartedAtMs = state.get("fastest100kStartedAtMs").getAsLong();
+            if (state.has("fastest100kFinishedAtMs")) fastest100kFinishedAtMs = state.get("fastest100kFinishedAtMs").getAsLong();
             if (state.has("activeProjectId")) activeProjectId = state.get("activeProjectId").getAsString();
             if (state.has("cloudSyncEnabled")) Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(state.get("cloudSyncEnabled").getAsBoolean());
             if (state.has("totalDigsSyncEnabled")) Generic.TOTAL_DIGS_SYNC_ENABLED.setBooleanValue(state.get("totalDigsSyncEnabled").getAsBoolean());
@@ -340,6 +427,11 @@ public class Configs implements IConfigHandler
             if (state.has("websiteLinkedMinecraftUuid")) websiteLinkedMinecraftUuid = state.get("websiteLinkedMinecraftUuid").getAsString();
             if (state.has("websiteLinkedMinecraftUsername")) websiteLinkedMinecraftUsername = state.get("websiteLinkedMinecraftUsername").getAsString();
             if (state.has("websiteLinkedAtMs")) websiteLinkedAtMs = state.get("websiteLinkedAtMs").getAsLong();
+            if (state.has("websiteSyncTier")) websiteSyncTier = state.get("websiteSyncTier").getAsString();
+            if (state.has("websiteSyncIntervalMs")) websiteSyncIntervalMs = state.get("websiteSyncIntervalMs").getAsLong();
+            if (state.has("websiteGlobalTotalBlocks")) websiteGlobalTotalBlocks = state.get("websiteGlobalTotalBlocks").getAsLong();
+            if (state.has("websiteGlobalTotalUpdatedAtMs")) websiteGlobalTotalUpdatedAtMs = state.get("websiteGlobalTotalUpdatedAtMs").getAsLong();
+            if (state.has("websiteLastSuccessfulSyncMs")) websiteLastSuccessfulSyncMs = state.get("websiteLastSuccessfulSyncMs").getAsLong();
             if (state.has("totalBlocksMined")) totalBlocksMined = state.get("totalBlocksMined").getAsLong();
             PROJECTS.clear();
             WORLD_STATS.clear();
@@ -372,6 +464,9 @@ public class Configs implements IConfigHandler
                         entry.host = object.has("host") ? object.get("host").getAsString() : "";
                         entry.totalBlocks = object.has("totalBlocks") ? object.get("totalBlocks").getAsLong() : 0L;
                         entry.lastSeenAt = object.has("lastSeenAt") ? object.get("lastSeenAt").getAsLong() : 0L;
+                        entry.blockBreakdown = readBlockBreakdown(object);
+                        entry.blockBreakdownSource = object.has("blockBreakdownSource") ? object.get("blockBreakdownSource").getAsString() : "";
+                        entry.blockBreakdownUpdatedAtMs = object.has("blockBreakdownUpdatedAtMs") ? object.get("blockBreakdownUpdatedAtMs").getAsLong() : 0L;
                         WORLD_STATS.add(entry);
                     }
                 }
@@ -384,6 +479,15 @@ public class Configs implements IConfigHandler
         JsonObject state = new JsonObject();
         state.addProperty("dailyProgress", dailyProgress);
         state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
+        state.addProperty("dailyBlocksMined", dailyBlocksMined);
+        state.addProperty("dailyBlocksDate", dailyBlocksDate == null ? "" : dailyBlocksDate);
+        state.addProperty("weeklyBlocksMined", weeklyBlocksMined);
+        state.addProperty("weeklyBlocksWeek", weeklyBlocksWeek == null ? "" : weeklyBlocksWeek);
+        state.addProperty("personalRecordDailyBlocks", personalRecordDailyBlocks);
+        state.addProperty("personalRecordWeeklyBlocks", personalRecordWeeklyBlocks);
+        state.addProperty("fastest100kMs", fastest100kMs);
+        state.addProperty("fastest100kStartedAtMs", fastest100kStartedAtMs);
+        state.addProperty("fastest100kFinishedAtMs", fastest100kFinishedAtMs);
         state.addProperty("activeProjectId", activeProjectId == null ? "" : activeProjectId);
         state.addProperty("cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue());
         state.addProperty("totalDigsSyncEnabled", Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue());
@@ -393,6 +497,11 @@ public class Configs implements IConfigHandler
         state.addProperty("websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid);
         state.addProperty("websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername);
         state.addProperty("websiteLinkedAtMs", websiteLinkedAtMs);
+        state.addProperty("websiteSyncTier", normalizeWebsiteSyncTier(websiteSyncTier));
+        state.addProperty("websiteSyncIntervalMs", normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs));
+        state.addProperty("websiteGlobalTotalBlocks", websiteGlobalTotalBlocks);
+        state.addProperty("websiteGlobalTotalUpdatedAtMs", websiteGlobalTotalUpdatedAtMs);
+        state.addProperty("websiteLastSuccessfulSyncMs", websiteLastSuccessfulSyncMs);
         state.addProperty("totalBlocksMined", totalBlocksMined);
 
         JsonArray projects = new JsonArray();
@@ -416,6 +525,9 @@ public class Configs implements IConfigHandler
             object.addProperty("host", entry.host);
             object.addProperty("totalBlocks", entry.totalBlocks);
             object.addProperty("lastSeenAt", entry.lastSeenAt);
+            object.addProperty("blockBreakdownSource", sanitizeBlockBreakdownSource(entry.blockBreakdownSource));
+            object.addProperty("blockBreakdownUpdatedAtMs", entry.blockBreakdownUpdatedAtMs);
+            object.add("blockBreakdown", writeBlockBreakdown(entry.blockBreakdown));
             worldStats.add(object);
         }
         state.add("worldStats", worldStats);
@@ -432,6 +544,11 @@ public class Configs implements IConfigHandler
                 entry.displayName = displayName == null || displayName.isBlank() ? entry.displayName : displayName;
                 entry.kind = kind == null || kind.isBlank() ? entry.kind : kind;
                 entry.host = host == null ? "" : host;
+                if (entry.blockBreakdown == null)
+                {
+                    entry.blockBreakdown = new LinkedHashMap<>();
+                }
+                entry.blockBreakdownSource = sanitizeBlockBreakdownSource(entry.blockBreakdownSource);
                 return entry;
             }
         }
@@ -441,8 +558,101 @@ public class Configs implements IConfigHandler
         entry.displayName = displayName == null || displayName.isBlank() ? normalizedWorldId : displayName;
         entry.kind = kind == null || kind.isBlank() ? "unknown" : kind;
         entry.host = host == null ? "" : host;
+        entry.blockBreakdown = new LinkedHashMap<>();
+        entry.blockBreakdownSource = "";
         WORLD_STATS.add(entry);
         return entry;
+    }
+
+    private static Map<String, Long> readBlockBreakdown(JsonObject object)
+    {
+        if (object.has("blockBreakdown") == false || object.get("blockBreakdown").isJsonObject() == false)
+        {
+            return new LinkedHashMap<>();
+        }
+
+        Map<String, Long> breakdown = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : object.getAsJsonObject("blockBreakdown").entrySet())
+        {
+            if (entry.getKey() == null || entry.getKey().isBlank())
+            {
+                continue;
+            }
+            try
+            {
+                long count = entry.getValue().getAsLong();
+                if (count > 0L)
+                {
+                    breakdown.put(entry.getKey(), count);
+                }
+            }
+            catch (Exception ignored)
+            {
+            }
+        }
+        return breakdown;
+    }
+
+    private static JsonObject writeBlockBreakdown(Map<String, Long> breakdown)
+    {
+        JsonObject object = new JsonObject();
+        if (breakdown == null)
+        {
+            return object;
+        }
+
+        breakdown.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && entry.getKey().isBlank() == false && entry.getValue() != null && entry.getValue() > 0L)
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
+                .forEach(entry -> object.addProperty(entry.getKey(), entry.getValue()));
+        return object;
+    }
+
+    public static Map<String, Long> sanitizeBlockBreakdown(Map<String, Long> breakdown)
+    {
+        Map<String, Long> sanitized = new LinkedHashMap<>();
+        if (breakdown == null)
+        {
+            return sanitized;
+        }
+
+        breakdown.entrySet().stream()
+                .filter(entry -> entry.getKey() != null && entry.getKey().isBlank() == false && entry.getValue() != null && entry.getValue() > 0L)
+                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
+                .forEach(entry -> sanitized.put(entry.getKey(), entry.getValue()));
+        return sanitized;
+    }
+
+    public static String sanitizeBlockBreakdownSource(String source)
+    {
+        if (BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS.equals(source))
+        {
+            return BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS;
+        }
+        if (BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED.equals(source))
+        {
+            return BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED;
+        }
+        return "";
+    }
+
+    public static String normalizeWebsiteSyncTier(String tier)
+    {
+        String normalized = tier == null ? "" : tier.trim().toLowerCase();
+        return switch (normalized)
+        {
+            case "supporter", "supporter_plus", "owner" -> normalized;
+            default -> "free";
+        };
+    }
+
+    public static long normalizeWebsiteSyncIntervalMs(long intervalMs)
+    {
+        if (intervalMs <= 0L)
+        {
+            return DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
+        }
+        return Math.max(MIN_WEBSITE_SYNC_INTERVAL_MS, Math.min(MAX_WEBSITE_SYNC_INTERVAL_MS, intervalMs));
     }
 
     private static File getPrimaryConfigFile()
@@ -497,6 +707,9 @@ public class Configs implements IConfigHandler
         public String host;
         public long totalBlocks;
         public long lastSeenAt;
+        public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
+        public long blockBreakdownUpdatedAtMs;
+        public String blockBreakdownSource = "";
     }
 
     public enum BlockEspColorMode implements IConfigOptionListEntry

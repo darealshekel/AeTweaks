@@ -1,7 +1,7 @@
 package com.miningtrackeraddon.sync;
 
 import com.miningtrackeraddon.MiningTrackerAddon;
-import com.miningtrackeraddon.config.Configs;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 import com.mojang.authlib.GameProfile;
 import java.util.Collection;
 import java.util.List;
@@ -358,7 +358,7 @@ final class PersonalTotalDetector
 
     private static void debugCandidate(String detector, String rendered, String objectiveTitle, long rawScore, long parsedValue, boolean accepted, String reason)
     {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        if (MmmDebugLogger.shouldLog("personal-total-candidate", 5_000L) == false)
         {
             return;
         }

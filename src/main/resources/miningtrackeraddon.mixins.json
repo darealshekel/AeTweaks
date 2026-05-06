@@ -3,6 +3,7 @@
   "package": "com.miningtrackeraddon.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerMixin",
     "WorldRendererMixin"
   ],

@@ -218,6 +218,21 @@ public final class PendingSyncQueue
 
             if (result.outcome() == SyncSendResult.Outcome.SUCCESS)
             {
+                if (current.payload.equals(attemptedItem.payload) == false)
+                {
+                    current.nextRetryAtMs = 0L;
+                    current.retryCount = 0;
+                    persistLocked();
+                    MiningTrackerAddon.LOGGER.info(
+                            "{} item-retained-newer-payload id={} type={} note=payload_changed_during_send queueSize={}",
+                            LOG_PREFIX,
+                            attemptedItem.id,
+                            attemptedItem.type,
+                            snapshotLocked().queueSize()
+                    );
+                    return;
+                }
+
                 this.items.removeIf(item -> item.id.equals(attemptedItem.id));
                 this.lastSuccessfulSyncAtMs = now;
                 persistLocked();

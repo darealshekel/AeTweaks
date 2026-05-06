@@ -9,6 +9,7 @@ import java.util.Map;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
+import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -32,23 +33,21 @@ public class SessionHistoryScreen extends Screen
     private static final int SBW = 8;
     private static final int SBM = 18;
     private static final int BREAKDOWN_HEIGHT = 108;
-    private static final int OVERLAY = 0xC20B0D12;
-    private static final int PANEL = 0xD1171A20;
-    private static final int CARD = 0xB11B1F27;
-    private static final int SOFT = 0x8F14181F;
-    private static final int INSET = 0xA111141A;
-    private static final int BORDER = 0xAA4A3538;
-    private static final int BORDER_SOFT = 0x66443638;
-    private static final int ACCENT = 0xFFE3BD78;
-    private static final int ACCENT_SOFT = 0x553A2411;
-    private static final int TEXT = 0xFFF5EEE7;
-    private static final int LABEL = 0xD2D5C9BF;
-    private static final int MUTED = 0x958B8178;
-    private static final int ROW_SEL = 0x5534221A;
-    private static final int ROW_HOVER = 0x33261A16;
-    private static final int ROW_ALT = 0x16100F12;
-    private static final int GRAPH_FILL = 0xCCB75E3A;
-    private static final int GRAPH_GRID = 0x22372628;
+    private static final int PANEL = MmmUi.PANEL;
+    private static final int CARD = MmmUi.CARD;
+    private static final int SOFT = MmmUi.CARD_SOFT;
+    private static final int INSET = MmmUi.INSET;
+    private static final int BORDER = MmmUi.BORDER;
+    private static final int BORDER_SOFT = MmmUi.BORDER_SOFT;
+    private static final int ACCENT = MmmUi.ACCENT;
+    private static final int TEXT = MmmUi.TEXT;
+    private static final int LABEL = MmmUi.LABEL;
+    private static final int MUTED = MmmUi.MUTED;
+    private static final int ROW_SEL = MmmUi.ROW_SELECTED;
+    private static final int ROW_HOVER = MmmUi.ROW_HOVER;
+    private static final int ROW_ALT = MmmUi.ROW_ALT;
+    private static final int GRAPH_FILL = MmmUi.GRAPH_FILL;
+    private static final int GRAPH_GRID = MmmUi.GRAPH_GRID;
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd  HH:mm");
 
     private final Screen parent;
@@ -100,11 +99,11 @@ public class SessionHistoryScreen extends Screen
         float anim = openAnim();
         int panelY = l.panelY + Math.round((1.0F - anim) * 14.0F);
         l = l.move(panelY - l.panelY);
-        context.fill(0, 0, this.width, this.height, OVERLAY);
+        MmmUi.backdrop(context, this.width, this.height);
         card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
         context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
         pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
-        context.drawText(this.textRenderer, Text.literal("Review previous runs with the same warm card system used across the mod."), l.contentX + 2, l.headerY + 40, LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Review previous runs with the same MMM website visual system."), l.contentX + 2, l.headerY + 40, LABEL, false);
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
@@ -381,10 +380,10 @@ public class SessionHistoryScreen extends Screen
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ c.drawText(this.textRenderer, Text.literal(label), lx, y, LABEL, false); int w=this.textRenderer.getWidth(value); c.drawText(this.textRenderer, Text.literal(value), rx-w, y, TEXT, false); }
     private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ card(c,x,y,w,h,SOFT,BORDER_SOFT); c.drawText(this.textRenderer, Text.literal(l), x+C, y+9, LABEL, false); c.drawText(this.textRenderer, Text.literal(v), x+C, y+24, TEXT, false); c.drawText(this.textRenderer, Text.literal(s), x+C, y+38, MUTED, false); }
     private void pill(DrawContext c,int x,int y,int w,int h,String t){ card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(t), x+(w-this.textRenderer.getWidth(t))/2, y+4, ACCENT, false); }
-    private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ c.fill(x,y,x+w,y+h,fill); c.fill(x+1,y+1,x+w-1,y+2,BORDER_SOFT); c.drawBorder(x,y,w,h,border); }
-    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,0x33131218); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?0xFFF3D8A3:isOverListBar(mx,my)?0xFFE9C78B:0xFFB28A57; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
+    private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
+    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?MmmUi.SCROLLBAR_THUMB_ACTIVE:isOverListBar(mx,my)?MmmUi.SCROLLBAR_THUMB_HOVER:MmmUi.SCROLLBAR_THUMB; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
-    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,0x33131218); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,active?0xFFF3D8A3:0xFFB28A57); }
+    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,active?MmmUi.SCROLLBAR_THUMB_ACTIVE:MmmUi.SCROLLBAR_THUMB); }
     private int getVisibleRows(Layout l){ return Math.max(1, (l.contentHeight - 68) / RH); }
     private boolean isInList(double mx,double my){ Layout l=layout(); return mx>=l.contentX+C&&mx<=l.contentX+l.leftWidth-C&&my>=l.contentY+44&&my<=l.contentY+l.contentHeight-12; }
     private boolean isInDetail(double mx,double my){ Layout l=layout(); return mx>=l.detailX+C&&mx<=l.detailX+l.detailWidth-C&&my>=l.contentY+28&&my<=l.contentY+l.contentHeight-12; }

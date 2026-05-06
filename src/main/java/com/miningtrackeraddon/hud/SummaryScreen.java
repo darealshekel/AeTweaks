@@ -10,6 +10,7 @@ import java.util.Map;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.block.Block;
@@ -39,22 +40,19 @@ public class SummaryScreen extends Screen
     private static final int BREAKDOWN_ROW_HEIGHT = 20;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB = 18;
-    private static final int COLOR_OVERLAY = 0xC20B0D12;
-    private static final int COLOR_PANEL = 0xD1171A20;
-    private static final int COLOR_CARD = 0xB11B1F27;
-    private static final int COLOR_CARD_SOFT = 0x8F14181F;
-    private static final int COLOR_INSET = 0xA111141A;
-    private static final int COLOR_BORDER = 0xAA4A3538;
-    private static final int COLOR_BORDER_SOFT = 0x66443638;
-    private static final int COLOR_ACCENT = 0xFFE3BD78;
-    private static final int COLOR_ACCENT_SOFT = 0x553A2411;
-    private static final int COLOR_GRAPH_FILL = 0xCCB75E3A;
-    private static final int COLOR_GRAPH_GRID = 0x22372628;
-    private static final int COLOR_VALUE = 0xFFF5EEE7;
-    private static final int COLOR_LABEL = 0xD2D5C9BF;
-    private static final int COLOR_MUTED = 0x958B8178;
-    private static final int COLOR_SUCCESS = 0xFF7EEDAA;
-    private static final int COLOR_WARNING = 0xFFF4D56A;
+    private static final int COLOR_PANEL = MmmUi.PANEL;
+    private static final int COLOR_CARD = MmmUi.CARD;
+    private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
+    private static final int COLOR_INSET = MmmUi.INSET;
+    private static final int COLOR_BORDER = MmmUi.BORDER;
+    private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
+    private static final int COLOR_ACCENT = MmmUi.ACCENT;
+    private static final int COLOR_GRAPH_FILL = MmmUi.GRAPH_FILL;
+    private static final int COLOR_GRAPH_GRID = MmmUi.GRAPH_GRID;
+    private static final int COLOR_VALUE = MmmUi.TEXT;
+    private static final int COLOR_LABEL = MmmUi.LABEL;
+    private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
     private static final Map<String, String> NAME_CACHE = new LinkedHashMap<>();
     private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
     private static final String SEARCH_PLACEHOLDER = "Search blocks...";
@@ -125,7 +123,7 @@ public class SummaryScreen extends Screen
         Layout animatedLayout = layout.withPanelY(animatedPanelY);
         updateDynamicWidgetBounds(animatedLayout);
 
-        context.fill(0, 0, this.width, this.height, COLOR_OVERLAY);
+        MmmUi.backdrop(context, this.width, this.height);
         fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, animatedLayout);
@@ -222,7 +220,7 @@ public class SummaryScreen extends Screen
     {
         context.drawText(this.textRenderer, Text.literal(this.heading), layout.contentX, layout.headerY, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal("A tighter session overview with the same account-link visual language."), layout.contentX + 2, layout.headerY + 40, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, Text.literal("Session pace, goals, and block mix in the MMM website style."), layout.contentX + 2, layout.headerY + 40, COLOR_LABEL, false);
     }
 
     private void drawStatCards(DrawContext context, Layout layout)
@@ -457,9 +455,9 @@ public class SummaryScreen extends Screen
 
         int thumbHeight = getScrollbarThumbHeight(height);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
-        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, 0x33131218);
+        context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
         context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
-        int thumbColor = this.draggingScrollbar ? 0xFFF3D8A3 : isOverScrollbar(mouseX, mouseY) ? 0xFFE9C78B : 0xFFB28A57;
+        int thumbColor = this.draggingScrollbar ? MmmUi.SCROLLBAR_THUMB_ACTIVE : isOverScrollbar(mouseX, mouseY) ? MmmUi.SCROLLBAR_THUMB_HOVER : MmmUi.SCROLLBAR_THUMB;
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
@@ -472,9 +470,7 @@ public class SummaryScreen extends Screen
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
-        context.fill(x, y, x + width, y + height, fillColor);
-        context.fill(x + 1, y + 1, x + width - 1, y + 2, COLOR_BORDER_SOFT);
-        context.drawBorder(x, y, width, height, borderColor);
+        MmmUi.card(context, x, y, width, height, fillColor, borderColor);
     }
 
     private void buildBreakdownEntries()

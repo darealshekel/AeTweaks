@@ -1,6 +1,7 @@
 package com.miningtrackeraddon.gui;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
@@ -11,6 +12,7 @@ import com.miningtrackeraddon.config.Hotkeys;
 import com.miningtrackeraddon.hud.SessionHistoryScreen;
 import com.miningtrackeraddon.hud.SummaryScreen;
 import com.miningtrackeraddon.tracker.MiningStats;
+import com.miningtrackeraddon.ui.PlayerProfileScreen;
 import com.miningtrackeraddon.ui.ProjectManagerScreen;
 import com.miningtrackeraddon.ui.WebsiteLinkScreen;
 
@@ -30,7 +32,7 @@ public class GuiConfigs extends GuiConfigsBase
 
     public GuiConfigs()
     {
-        super(10, 50, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
+        super(10, 72, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
     }
 
     @Override
@@ -43,6 +45,11 @@ public class GuiConfigs extends GuiConfigsBase
         int y = 26;
         for (ConfigGuiTab configTab : ConfigGuiTab.values())
         {
+            if (configTab == ConfigGuiTab.WEBSITE_LINK)
+            {
+                x = 10;
+                y = 48;
+            }
             x += this.createTabButton(x, y, configTab);
         }
 
@@ -71,7 +78,16 @@ public class GuiConfigs extends GuiConfigsBase
         }
         else if (tab == ConfigGuiTab.TWEAKS)
         {
-            return ConfigOptionWrapper.createFor(TWEAK_LIST.stream().map(this::wrapConfig).toList());
+            List<ConfigOptionWrapper> wrappers = new ArrayList<>();
+            for (FeatureToggle toggle : TWEAK_LIST)
+            {
+                wrappers.addAll(ConfigOptionWrapper.createFor(List.of(wrapConfig(toggle))));
+                if (toggle == FeatureToggle.TWEAK_PERIMETER_WALL_DIG_HELPER)
+                {
+                    wrappers.addAll(ConfigOptionWrapper.createFor(List.of(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST)));
+                }
+            }
+            return wrappers;
         }
         else if (tab == ConfigGuiTab.HOTKEYS)
         {
@@ -118,6 +134,12 @@ public class GuiConfigs extends GuiConfigsBase
                 return;
             }
 
+            if (this.tab == ConfigGuiTab.PROFILE)
+            {
+                MinecraftClient.getInstance().setScreen(new PlayerProfileScreen(this.parent));
+                return;
+            }
+
             if (this.tab == ConfigGuiTab.WEBSITE_LINK)
             {
                 MinecraftClient.getInstance().setScreen(new WebsiteLinkScreen(this.parent));
@@ -149,6 +171,7 @@ public class GuiConfigs extends GuiConfigsBase
         TWEAKS("Toggles"),
         HOTKEYS("Hotkeys"),
         PROJECTS("Projects"),
+        PROFILE("Profile"),
         WEBSITE_LINK("Website Link"),
         SUMMARY("Summary"),
         HISTORY("History");

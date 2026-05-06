@@ -87,7 +87,8 @@ public final class DigsSyncManager
             return;
         }
 
-        String fingerprint = fingerprint(latestModel);
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        String fingerprint = fingerprint(latestModel, BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo));
         if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
         {
             return;
@@ -242,6 +243,13 @@ public final class DigsSyncManager
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         payload.add("world", world);
+        payload.add("mining_records", buildMiningRecords());
+
+        JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
+        if (currentWorldBlockBreakdown != null)
+        {
+            payload.add("current_world_block_breakdown", currentWorldBlockBreakdown);
+        }
 
         JsonObject digs = new JsonObject();
         digs.addProperty("username", model.username());
@@ -263,6 +271,17 @@ public final class DigsSyncManager
                 sessionEndMs));
 
         return payload;
+    }
+
+    private static JsonObject buildMiningRecords()
+    {
+        JsonObject records = new JsonObject();
+        records.addProperty("daily_blocks_mined", MiningStats.getDailyBlocksMined());
+        records.addProperty("weekly_blocks_mined", MiningStats.getWeeklyBlocksMined());
+        records.addProperty("personal_record_daily_blocks", MiningStats.getPersonalRecordDailyBlocks());
+        records.addProperty("personal_record_weekly_blocks", MiningStats.getPersonalRecordWeeklyBlocks());
+        records.addProperty("fastest_100k_seconds", MiningStats.getFastest100kSeconds());
+        return records;
     }
 
     private static String normaliseWorldKind(String kind)
@@ -339,7 +358,12 @@ public final class DigsSyncManager
 
     private static String fingerprint(PlayerDigsModel model)
     {
-        return dedupeKey(model);
+        return fingerprint(model, BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()));
+    }
+
+    private static String fingerprint(PlayerDigsModel model, String blockBreakdownFingerprint)
+    {
+        return dedupeKey(model) + "|" + (blockBreakdownFingerprint == null ? "" : blockBreakdownFingerprint);
     }
 
     private static String fingerprint(JsonObject payload)
@@ -353,7 +377,10 @@ public final class DigsSyncManager
         String username = digs.has("username") ? digs.get("username").getAsString() : "";
         String server = digs.has("server") ? digs.get("server").getAsString() : "";
         long total = digs.has("total_digs") ? digs.get("total_digs").getAsLong() : 0L;
-        return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total;
+        String blockBreakdownFingerprint = payload.has("current_world_block_breakdown")
+                ? BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown"))
+                : "";
+        return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|" + blockBreakdownFingerprint;
     }
 
     private static void clearStaleModel(long now)

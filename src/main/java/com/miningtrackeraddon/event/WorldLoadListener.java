@@ -1,16 +1,16 @@
 package com.miningtrackeraddon.event;
 
 import com.miningtrackeraddon.config.FeatureToggle;
-import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.storage.SessionData;
 import com.miningtrackeraddon.storage.SessionHistory;
 import com.miningtrackeraddon.storage.WorldSessionContext;
 import com.miningtrackeraddon.sync.CloudSyncManager;
 import com.miningtrackeraddon.sync.DigsSyncManager;
 import com.miningtrackeraddon.sync.SyncQueueManager;
+import com.miningtrackeraddon.tracker.BlockBreakdownTracker;
 import com.miningtrackeraddon.tracker.GoalNotificationManager;
 import com.miningtrackeraddon.tracker.MiningStats;
-import com.miningtrackeraddon.MiningTrackerAddon;
+import com.miningtrackeraddon.util.MmmDebugLogger;
 
 import fi.dy.masa.malilib.interfaces.IWorldLoadListener;
 import net.minecraft.client.MinecraftClient;
@@ -56,6 +56,7 @@ public class WorldLoadListener implements IWorldLoadListener
                 DigsSyncManager.resetForWorldChange(nextWorldId);
                 SessionHistory.loadForWorld(nextWorldId);
                 MiningStats.startWorldSession(nextWorldId);
+                BlockBreakdownTracker.requestStatsOnWorldJoin();
             }
             SyncQueueManager.forceFlush("world join");
         }
@@ -69,13 +70,10 @@ public class WorldLoadListener implements IWorldLoadListener
 
     private void debugWorldSwitch(String previousWorldId, String nextWorldId)
     {
-        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
-        {
-            return;
-        }
-
         WorldSessionContext.WorldInfo info = WorldSessionContext.getCurrentWorldInfo();
-        MiningTrackerAddon.LOGGER.info(
+        MmmDebugLogger.info(
+                "world-switch",
+                30_000L,
                 "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host={}",
                 previousWorldId,
                 nextWorldId,

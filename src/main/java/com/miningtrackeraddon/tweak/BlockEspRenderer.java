@@ -1,6 +1,7 @@
 package com.miningtrackeraddon.tweak;
 
 import com.miningtrackeraddon.config.Configs;
+import com.miningtrackeraddon.config.FeatureToggle;
 
 import fi.dy.masa.malilib.render.RenderUtils;
 import fi.dy.masa.malilib.util.data.Color4f;
@@ -29,7 +30,7 @@ public final class BlockEspRenderer
 
     public static void render(MinecraftClient client, Matrix4f positionMatrix, Matrix4f projectionMatrix)
     {
-        if (Configs.isBlockEspOutlineOnly() || positionMatrix == null)
+        if (positionMatrix == null || Configs.isBlockEspOutlineOnly())
         {
             return;
         }
@@ -43,6 +44,7 @@ public final class BlockEspRenderer
         Color4f baseColor = getCurrentColor(client);
         Color4f fillColor = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
         Color4f outlineColor = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
+        RenderUtils.renderAreaSides(targetPos, targetPos, fillColor, positionMatrix);
         RenderUtils.renderBlockOutlineOverlapping(targetPos, BOX_EXPAND, OUTLINE_WIDTH, fillColor, outlineColor, outlineColor, positionMatrix);
     }
 
@@ -68,7 +70,9 @@ public final class BlockEspRenderer
 
     public static boolean shouldReplaceVanillaOutline(MinecraftClient client)
     {
-        return Configs.getBlockEspOpacity() > 0.0F && getTargetBlock(client) != null;
+        return FeatureToggle.TWEAK_BLOCK_ESP.getBooleanValue()
+                && Configs.getBlockEspOpacity() > 0.0F
+                && getTargetBlock(client) != null;
     }
 
     private static BlockPos getTargetBlock(MinecraftClient client)
