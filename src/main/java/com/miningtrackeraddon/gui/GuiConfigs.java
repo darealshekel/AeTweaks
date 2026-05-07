@@ -28,11 +28,14 @@ import net.minecraft.client.MinecraftClient;
 public class GuiConfigs extends GuiConfigsBase
 {
     public static ImmutableList<FeatureToggle> TWEAK_LIST = FeatureToggle.VALUES;
+    private static final int TAB_Y = 22;
+    private static final int TAB_HEIGHT = 16;
+    private static final int LIST_Y = TAB_Y + TAB_HEIGHT + 6;
     private static ConfigGuiTab tab = ConfigGuiTab.TWEAKS;
 
     public GuiConfigs()
     {
-        super(10, 72, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
+        super(10, LIST_Y, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
     }
 
     @Override
@@ -47,7 +50,7 @@ public class GuiConfigs extends GuiConfigsBase
         int tabWidth = Math.max(34, Math.min(74, availableWidth / tabs.length));
         int rowWidth = tabs.length * tabWidth + gap * (tabs.length - 1);
         int x = Math.max(10, (this.width - rowWidth) / 2);
-        int y = 18;
+        int y = TAB_Y;
         for (ConfigGuiTab configTab : tabs)
         {
             this.createTabButton(x, y, tabWidth, configTab);
@@ -109,7 +112,7 @@ public class GuiConfigs extends GuiConfigsBase
 
     private void createTabButton(int x, int y, int width, ConfigGuiTab configTab)
     {
-        ButtonGeneric button = new ButtonGeneric(x, y, width, 16, configTab.getDisplayName());
+        ButtonGeneric button = new ButtonGeneric(x, y, width, TAB_HEIGHT, configTab.getDisplayName());
         button.setEnabled(tab != configTab);
         this.addButton(button, new TabButtonListener(configTab, this));
     }

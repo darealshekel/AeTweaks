@@ -49,9 +49,12 @@ public final class MiningHudRenderer
         List<HudLine> lines = new ArrayList<>();
         lines.add(HudLine.text("MMM", HUD_TITLE_COLOR));
 
-        MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
-        lines.add(HudLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
+        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
+        {
+            MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
+            lines.add(HudLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
+        }
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue())
         {
             long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
@@ -148,7 +151,7 @@ public final class MiningHudRenderer
     {
         List<String> lines = new ArrayList<>();
         lines.add("MMM");
-        lines.add("Project: Example Project | 12.3K Blocks Mined");
+        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue()) lines.add("Project: Example Project | 12.3K Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Global Total: 123M Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3K Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Session Total: 890 Blocks Mined");

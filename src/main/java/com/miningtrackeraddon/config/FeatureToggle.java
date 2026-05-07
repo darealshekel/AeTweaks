@@ -28,6 +28,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_SUMMARY_ON_EXIT("tweakSummaryOnExit", true, "", "Shows the session summary after leaving a world or server."),
     TWEAK_CARRY_GOAL_PROGRESS("tweakCarryGoalProgress", true, "", "Keeps daily goal progress between sessions."),
     TWEAK_HUD("tweakMiningHud", true, "", "Renders the mining HUD."),
+    TWEAK_HUD_PROJECT("tweakMiningHudProject", true, "", "Shows active project progress in the HUD."),
     TWEAK_HUD_TOTAL_MINED("tweakMiningHudTotalMined", true, "", "Shows total mined in the HUD."),
     TWEAK_HUD_GOAL_PROGRESS("tweakMiningHudGoalProgress", true, "", "Shows daily goal progress in the HUD."),
     TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows blocks per hour in the HUD."),

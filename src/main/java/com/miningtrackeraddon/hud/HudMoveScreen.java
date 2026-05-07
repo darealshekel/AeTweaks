@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.miningtrackeraddon.config.Configs;
 import com.miningtrackeraddon.config.Configs.HudAlignment;
+import com.miningtrackeraddon.config.FeatureToggle;
 import com.miningtrackeraddon.tracker.MiningStats;
 import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
@@ -161,12 +162,15 @@ public class HudMoveScreen extends Screen
     {
         List<PreviewLine> lines = new ArrayList<>();
         lines.add(PreviewLine.text("MMM", MmmUi.ACCENT_BRIGHT));
-        MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         long sessionTotal = MiningStats.getSessionBlocksMined();
-        lines.add(PreviewLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
+        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
+        {
+            MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
+            lines.add(PreviewLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
+        }
         lines.add(PreviewLine.blocksMined("Global Total: ", globalTotal));
         lines.add(PreviewLine.blocksMined("World Total: ", worldTotal));
         lines.add(PreviewLine.blocksMined("Session Total: ", sessionTotal));
