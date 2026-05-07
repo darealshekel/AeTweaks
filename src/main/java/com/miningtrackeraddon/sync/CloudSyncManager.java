@@ -210,10 +210,7 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
-        applySyncResponse(responseBody);
-        WebsiteProfileTotals.refresh(true);
-        Configs.websiteLastSuccessfulSyncMs = System.currentTimeMillis();
-        Configs.saveToFile();
+        applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
         {
@@ -425,6 +422,14 @@ public final class CloudSyncManager
 
         lastQueuedLiveFingerprint = fingerprint;
         SyncQueueManager.enqueueCloudLiveState(payload);
+    }
+
+    static void applySuccessfulSyncResponse(String responseBody)
+    {
+        applySyncResponse(responseBody);
+        WebsiteProfileTotals.refresh(true);
+        Configs.websiteLastSuccessfulSyncMs = System.currentTimeMillis();
+        Configs.saveToFile();
     }
 
     private static void applySyncResponse(String responseBody)

@@ -15,7 +15,6 @@ import net.minecraft.client.MinecraftClient;
 public final class DigsSyncManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
-    private static final long MIN_SYNC_INTERVAL_MS = 7_500L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long AUTHORITATIVE_MODEL_STALE_MS = 15_000L;
@@ -99,7 +98,7 @@ public final class DigsSyncManager
             return;
         }
 
-        if (now - lastQueueAttemptMs < MIN_SYNC_INTERVAL_MS)
+        if (lastQueueAttemptMs > 0L && now - lastQueueAttemptMs < CloudSyncManager.getSyncIntervalMs())
         {
             return;
         }
@@ -118,8 +117,26 @@ public final class DigsSyncManager
     {
         status = SyncStatus.SYNCED;
         touchHealthy();
+        CloudSyncManager.applySuccessfulSyncResponse(responseBody);
         lastSuccessfulFingerprint = fingerprint(payload);
         lastQueuedFingerprint = lastSuccessfulFingerprint;
+    }
+
+    public static void syncNow(String reason)
+    {
+        long now = System.currentTimeMillis();
+        if (latestModel == null
+                || latestModel.isValid() == false
+                || now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS
+                || canSync() == false)
+        {
+            return;
+        }
+
+        lastQueueAttemptMs = now;
+        lastQueuedFingerprint = fingerprint(latestModel);
+        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), buildPayload(latestModel));
+        SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "total digs sync" : reason);
     }
 
     static void onQueueRetry(String detail, long nextRetryAtMs)

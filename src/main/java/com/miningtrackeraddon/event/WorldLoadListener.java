@@ -34,6 +34,7 @@ public class WorldLoadListener implements IWorldLoadListener
         {
             SessionData finished = MiningStats.finaliseSession();
             CloudSyncManager.syncNow("world exit");
+            DigsSyncManager.syncNow("world exit");
             SyncQueueManager.forceFlush("world exit");
             if (FeatureToggle.TWEAK_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
             {
