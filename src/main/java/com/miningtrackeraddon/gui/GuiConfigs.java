@@ -44,9 +44,10 @@ public class GuiConfigs extends GuiConfigsBase
         ConfigGuiTab[] tabs = ConfigGuiTab.values();
         int gap = 2;
         int availableWidth = Math.max(1, this.width - 20 - gap * (tabs.length - 1));
-        int tabWidth = Math.max(34, availableWidth / tabs.length);
-        int x = 10;
-        int y = 26;
+        int tabWidth = Math.max(34, Math.min(74, availableWidth / tabs.length));
+        int rowWidth = tabs.length * tabWidth + gap * (tabs.length - 1);
+        int x = Math.max(10, (this.width - rowWidth) / 2);
+        int y = 18;
         for (ConfigGuiTab configTab : tabs)
         {
             this.createTabButton(x, y, tabWidth, configTab);
@@ -108,7 +109,7 @@ public class GuiConfigs extends GuiConfigsBase
 
     private void createTabButton(int x, int y, int width, ConfigGuiTab configTab)
     {
-        ButtonGeneric button = new ButtonGeneric(x, y, width, 20, configTab.getDisplayName());
+        ButtonGeneric button = new ButtonGeneric(x, y, width, 16, configTab.getDisplayName());
         button.setEnabled(tab != configTab);
         this.addButton(button, new TabButtonListener(configTab, this));
     }
@@ -168,7 +169,7 @@ public class GuiConfigs extends GuiConfigsBase
     {
         GENERIC("Generic"),
         TWEAKS("Toggles"),
-        HOTKEYS("Keys"),
+        HOTKEYS("Hotkeys"),
         PROJECTS("Projects"),
         PROFILE("Profile"),
         WEBSITE_LINK("Website"),

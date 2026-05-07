@@ -10,6 +10,7 @@ import com.miningtrackeraddon.ui.MmmUi;
 import com.miningtrackeraddon.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -159,20 +160,20 @@ public class HudMoveScreen extends Screen
     private void drawPreview(DrawContext context, int x, int y, double scale)
     {
         List<PreviewLine> lines = new ArrayList<>();
-        lines.add(new PreviewLine("MMM", MmmUi.ACCENT_BRIGHT));
+        lines.add(PreviewLine.text("MMM", MmmUi.ACCENT_BRIGHT));
         MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         long sessionTotal = MiningStats.getSessionBlocksMined();
-        lines.add(new PreviewLine("Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()), UiFormat.getBlocksMinedMilestoneColor(project.blocksMined())));
-        lines.add(new PreviewLine("Global Total: " + UiFormat.formatBlocks(globalTotal), UiFormat.getBlocksMinedMilestoneColor(globalTotal)));
-        lines.add(new PreviewLine("World Total: " + UiFormat.formatBlocks(worldTotal), UiFormat.getBlocksMinedMilestoneColor(worldTotal)));
-        lines.add(new PreviewLine("Session Total: " + UiFormat.formatBlocks(sessionTotal), UiFormat.getBlocksMinedMilestoneColor(sessionTotal)));
-        lines.add(new PreviewLine("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), MmmUi.TEXT));
-        lines.add(new PreviewLine("Session Time: " + MiningStats.getSessionDurationClock(), MmmUi.TEXT));
+        lines.add(PreviewLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
+        lines.add(PreviewLine.blocksMined("Global Total: ", globalTotal));
+        lines.add(PreviewLine.blocksMined("World Total: ", worldTotal));
+        lines.add(PreviewLine.blocksMined("Session Total: ", sessionTotal));
+        lines.add(PreviewLine.text("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), MmmUi.TEXT));
+        lines.add(PreviewLine.text("Session Time: " + MiningStats.getSessionDurationClock(), MmmUi.TEXT));
 
-        int width = Math.max(lines.stream().mapToInt(line -> this.textRenderer.getWidth(line.text())).max().orElse(190), 190);
+        int width = Math.max(lines.stream().mapToInt(line -> line.width(this.textRenderer)).max().orElse(190), 190);
         int lineHeight = this.textRenderer.fontHeight + 2;
         int padding = 4;
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
@@ -183,12 +184,12 @@ public class HudMoveScreen extends Screen
         MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         int drawY = 0;
-        context.drawText(this.textRenderer, Text.literal(lines.getFirst().text()), 0, drawY, lines.getFirst().color(), true);
+        lines.getFirst().draw(context, this.textRenderer, 0, drawY, true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
             PreviewLine line = lines.get(i);
-            context.drawText(this.textRenderer, Text.literal(line.text()), 0, drawY, line.color(), false);
+            line.draw(context, this.textRenderer, 0, drawY, false);
             drawY += lineHeight;
         }
 
@@ -207,7 +208,43 @@ public class HudMoveScreen extends Screen
         context.getMatrices().popMatrix();
     }
 
-    private record PreviewLine(String text, int color)
+    private record PreviewSegment(String text, int color)
     {
+    }
+
+    private record PreviewLine(List<PreviewSegment> segments)
+    {
+        static PreviewLine text(String text, int color)
+        {
+            return new PreviewLine(List.of(new PreviewSegment(text, color)));
+        }
+
+        static PreviewLine blocksMined(String label, long value)
+        {
+            return new PreviewLine(List.of(
+                    new PreviewSegment(label, MmmUi.TEXT),
+                    new PreviewSegment(UiFormat.formatCompact(value), UiFormat.getBlocksMinedMilestoneColor(value)),
+                    new PreviewSegment(" Blocks Mined", MmmUi.TEXT)));
+        }
+
+        int width(TextRenderer renderer)
+        {
+            int width = 0;
+            for (PreviewSegment segment : this.segments)
+            {
+                width += renderer.getWidth(segment.text());
+            }
+            return width;
+        }
+
+        void draw(DrawContext context, TextRenderer renderer, int x, int y, boolean shadow)
+        {
+            int drawX = x;
+            for (PreviewSegment segment : this.segments)
+            {
+                context.drawText(renderer, Text.literal(segment.text()), drawX, y, segment.color(), shadow);
+                drawX += renderer.getWidth(segment.text());
+            }
+        }
     }
 }

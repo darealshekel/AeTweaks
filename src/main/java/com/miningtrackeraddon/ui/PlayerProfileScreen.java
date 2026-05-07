@@ -91,8 +91,8 @@ public class PlayerProfileScreen extends Screen
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, "Totals");
-        drawMetric(context, x, y + 30, width, "Global Total", UiFormat.formatBlocks(globalTotal), UiFormat.getBlocksMinedMilestoneColor(globalTotal));
-        drawMetric(context, x, y + 56, width, "World Total", UiFormat.formatBlocks(worldTotal), UiFormat.getBlocksMinedMilestoneColor(worldTotal));
+        drawBlocksMetric(context, x, y + 30, width, "Global Total", globalTotal);
+        drawBlocksMetric(context, x, y + 56, width, "World Total", worldTotal);
         context.drawText(this.textRenderer, Text.literal(lastGlobalUpdateText()), x + CARD_PADDING, y + height - 14, MmmUi.MUTED, false);
     }
 
@@ -104,8 +104,8 @@ public class PlayerProfileScreen extends Screen
         long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, "Records");
-        drawMetric(context, x, y + 28, width, "Today / Week", UiFormat.formatCompact(dailyBlocks) + " / " + UiFormat.formatCompact(weeklyBlocks), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyBlocks, weeklyBlocks)));
-        drawMetric(context, x, y + 52, width, "PR Day / Week", UiFormat.formatCompact(dailyRecord) + " / " + UiFormat.formatCompact(weeklyRecord), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyRecord, weeklyRecord)));
+        drawDualBlocksMetric(context, x, y + 28, width, "Today / Week", dailyBlocks, weeklyBlocks);
+        drawDualBlocksMetric(context, x, y + 52, width, "PR Day / Week", dailyRecord, weeklyRecord);
         drawMetric(context, x, y + 76, width, "Fastest 100K", MiningStats.getFastest100kMs() > 0L ? MiningStats.getFastest100kClock() : "-", MmmUi.TEXT);
     }
 
@@ -160,6 +160,33 @@ public class PlayerProfileScreen extends Screen
         context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
         String clipped = MmmUi.truncate(this.textRenderer, value, width - CARD_PADDING * 2 - 88);
         context.drawText(this.textRenderer, Text.literal(clipped), x + width - CARD_PADDING - this.textRenderer.getWidth(clipped), y, valueColor, false);
+    }
+
+    private void drawBlocksMetric(DrawContext context, int x, int y, int width, String label, long value)
+    {
+        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
+        String number = UiFormat.formatCompact(value);
+        String suffix = " blocks";
+        int suffixWidth = this.textRenderer.getWidth(suffix);
+        int numberWidth = this.textRenderer.getWidth(number);
+        int drawX = x + width - CARD_PADDING - numberWidth - suffixWidth;
+        context.drawText(this.textRenderer, Text.literal(number), drawX, y, UiFormat.getBlocksMinedMilestoneColor(value), false);
+        context.drawText(this.textRenderer, Text.literal(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
+    }
+
+    private void drawDualBlocksMetric(DrawContext context, int x, int y, int width, String label, long left, long right)
+    {
+        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
+        String leftText = UiFormat.formatCompact(left);
+        String separator = " / ";
+        String rightText = UiFormat.formatCompact(right);
+        int totalWidth = this.textRenderer.getWidth(leftText) + this.textRenderer.getWidth(separator) + this.textRenderer.getWidth(rightText);
+        int drawX = x + width - CARD_PADDING - totalWidth;
+        context.drawText(this.textRenderer, Text.literal(leftText), drawX, y, UiFormat.getBlocksMinedMilestoneColor(left), false);
+        drawX += this.textRenderer.getWidth(leftText);
+        context.drawText(this.textRenderer, Text.literal(separator), drawX, y, MmmUi.TEXT, false);
+        drawX += this.textRenderer.getWidth(separator);
+        context.drawText(this.textRenderer, Text.literal(rightText), drawX, y, UiFormat.getBlocksMinedMilestoneColor(right), false);
     }
 
     private String syncLabel()
