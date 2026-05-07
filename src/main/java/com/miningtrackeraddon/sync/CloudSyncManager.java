@@ -31,7 +31,6 @@ public final class CloudSyncManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final long PERIODIC_SYNC_INTERVAL_MS = 300_000L;
     private static final long AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
@@ -372,7 +371,7 @@ public final class CloudSyncManager
 
     public static long getSyncIntervalMs()
     {
-        return PERIODIC_SYNC_INTERVAL_MS;
+        return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
     public static String getSyncTier()
