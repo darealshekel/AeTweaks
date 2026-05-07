@@ -18,11 +18,18 @@ import com.miningtrackeraddon.ui.ProjectManagerScreen;
 import com.miningtrackeraddon.ui.WebsiteLinkScreen;
 
 import fi.dy.masa.malilib.config.IConfigBase;
+import fi.dy.masa.malilib.config.IConfigResettable;
 import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
 import fi.dy.masa.malilib.gui.GuiConfigsBase;
 import fi.dy.masa.malilib.gui.button.ButtonBase;
+import fi.dy.masa.malilib.gui.button.ConfigButtonKeybind;
 import fi.dy.masa.malilib.gui.button.ButtonGeneric;
 import fi.dy.masa.malilib.gui.button.IButtonActionListener;
+import fi.dy.masa.malilib.gui.widgets.WidgetBase;
+import fi.dy.masa.malilib.gui.widgets.WidgetConfigOption;
+import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptions;
+import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptionsBase;
+import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -60,6 +67,12 @@ public class GuiConfigs extends GuiConfigsBase
             x += tabWidth + gap;
         }
 
+    }
+
+    @Override
+    protected WidgetListConfigOptions createListWidget(int listX, int listY)
+    {
+        return new MmmConfigListWidget(listX, listY, this.getBrowserWidth(), this.getBrowserHeight(), this.getConfigWidth(), 0.0F, this.useKeybindSearch(), this);
     }
 
     @Override
@@ -146,6 +159,100 @@ public class GuiConfigs extends GuiConfigsBase
         ButtonGeneric button = new MmmTabButton(x, y, width, TAB_HEIGHT, configTab.getDisplayName(), tab == configTab);
         button.setEnabled(tab != configTab);
         this.addButton(button, new TabButtonListener(configTab, this));
+    }
+
+    private static class MmmConfigListWidget extends WidgetListConfigOptions
+    {
+        private MmmConfigListWidget(int x, int y, int width, int height, int configWidth, float zLevel, boolean useKeybindSearch, GuiConfigsBase parent)
+        {
+            super(x, y, width, height, configWidth, zLevel, useKeybindSearch, parent);
+        }
+
+        @Override
+        public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
+        {
+            if (this.widgetSearchBar != null)
+            {
+                MmmUi.fieldShell(context, this.widgetSearchBar.getX() - 2, this.widgetSearchBar.getY() - 2, this.widgetSearchBar.getWidth() + 4, this.widgetSearchBar.getHeight() + 4, this.widgetSearchBar.hasFilter());
+            }
+
+            super.drawContents(context, mouseX, mouseY, partialTicks);
+        }
+
+        @Override
+        protected WidgetConfigOption createListEntryWidget(int x, int y, int listIndex, boolean isOdd, ConfigOptionWrapper entry)
+        {
+            return new MmmConfigOptionWidget(x, y, this.browserEntryWidth, this.browserEntryHeight, this.maxLabelWidth, this.configWidth, entry, listIndex, this.parent, this);
+        }
+    }
+
+    private static class MmmConfigOptionWidget extends WidgetConfigOption
+    {
+        private MmmConfigOptionWidget(int x, int y, int width, int height, int maxNameLength, int configWidth, ConfigOptionWrapper wrapper, int listIndex, GuiConfigsBase host, WidgetListConfigOptionsBase<?, ?> parent)
+        {
+            super(x, y, width, height, maxNameLength, configWidth, wrapper, listIndex, host, parent);
+            this.styleGeneratedButtons();
+        }
+
+        @Override
+        protected void addConfigButtonEntry(int x, int y, IConfigResettable config, ButtonBase button)
+        {
+            this.styleButton(button);
+            super.addConfigButtonEntry(x, y, config, button);
+        }
+
+        @Override
+        protected void addKeybindResetButton(int x, int y, IKeybind keybind, ConfigButtonKeybind button)
+        {
+            this.styleButton(button);
+            super.addKeybindResetButton(x, y, keybind, button);
+        }
+
+        @Override
+        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        {
+            int fill = selected ? MmmUi.ROW_SELECTED : this.listIndex % 2 == 0 ? MmmUi.CARD_SOFT : MmmUi.ROW_ALT;
+            if (this.isMouseOver(mouseX, mouseY))
+            {
+                fill = MmmUi.ROW_HOVER;
+            }
+
+            MmmUi.card(context, this.x + 1, this.y, Math.max(1, this.width - 2), Math.max(1, this.height - 1), fill, MmmUi.BORDER_SOFT);
+            this.drawStyledButtonShells(context, mouseX, mouseY);
+            super.render(context, mouseX, mouseY, selected);
+        }
+
+        private void styleGeneratedButtons()
+        {
+            for (WidgetBase widget : this.subWidgets)
+            {
+                if (widget instanceof ButtonBase button)
+                {
+                    this.styleButton(button);
+                }
+            }
+        }
+
+        private void styleButton(ButtonBase button)
+        {
+            if (button instanceof ButtonGeneric generic)
+            {
+                generic.setRenderDefaultBackground(false);
+                generic.setTextCentered(true);
+            }
+        }
+
+        private void drawStyledButtonShells(DrawContext context, int mouseX, int mouseY)
+        {
+            for (WidgetBase widget : this.subWidgets)
+            {
+                if (widget instanceof ButtonBase button && button.getWidth() > 0 && button.getHeight() > 0)
+                {
+                    boolean hovered = button.isMouseOver(mouseX, mouseY);
+                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
+                }
+            }
+        }
     }
 
     private static class MmmTabButton extends ButtonGeneric

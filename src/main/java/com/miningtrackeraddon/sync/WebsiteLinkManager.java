@@ -107,8 +107,10 @@ public final class WebsiteLinkManager
         JsonObject payload = new JsonObject();
         payload.addProperty("code", code);
         payload.addProperty("minecraftUuid", uuid);
+        payload.addProperty("minecraft_uuid", uuid);
         payload.addProperty("username", username);
         payload.addProperty("clientId", Configs.cloudClientId);
+        payload.addProperty("client_id", Configs.cloudClientId);
         return payload;
     }
 

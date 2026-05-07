@@ -11,17 +11,17 @@ import net.minecraft.text.Text;
 
 public final class MmmUi
 {
-    public static final int OVERLAY = 0xD5050507;
-    public static final int PANEL = 0xEA090A0D;
-    public static final int CARD = 0xCF101116;
-    public static final int CARD_SOFT = 0xB80B0C10;
-    public static final int INSET = 0xB0060709;
-    public static final int BORDER = 0xB62A2F37;
-    public static final int BORDER_SOFT = 0x77313943;
+    public static final int OVERLAY = 0xF2030305;
+    public static final int PANEL = 0xF507080B;
+    public static final int CARD = 0xE80A0B10;
+    public static final int CARD_SOFT = 0xD806070A;
+    public static final int INSET = 0xD0020305;
+    public static final int BORDER = 0xB01E232B;
+    public static final int BORDER_SOFT = 0x66303945;
     public static final int ACCENT = 0xFFFF1E2D;
     public static final int ACCENT_BRIGHT = 0xFFFF4A55;
-    public static final int ACCENT_SOFT = 0x55330008;
-    public static final int ACCENT_ROW = 0x55210007;
+    public static final int ACCENT_SOFT = 0x4A320007;
+    public static final int ACCENT_ROW = 0x4A210006;
     public static final int TEXT = 0xFFF6F3EF;
     public static final int LABEL = 0xD8C9CDD5;
     public static final int MUTED = 0x9A828893;
@@ -29,9 +29,9 @@ public final class MmmUi
     public static final int WARNING = 0xFFFFC857;
     public static final int ERROR = 0xFFFF5965;
     public static final int BLUE = 0xFF5FB8FF;
-    public static final int ROW_SELECTED = 0x66260008;
-    public static final int ROW_HOVER = 0x40220A10;
-    public static final int ROW_ALT = 0x18101218;
+    public static final int ROW_SELECTED = 0x5C260007;
+    public static final int ROW_HOVER = 0x381E080D;
+    public static final int ROW_ALT = 0x1E0A0B10;
     public static final int GRAPH_FILL = 0xBFFF1E2D;
     public static final int GRAPH_GRID = 0x28FF1E2D;
     public static final int SCROLLBAR_TRACK = 0x44101014;
