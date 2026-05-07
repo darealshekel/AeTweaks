@@ -369,7 +369,8 @@ public final class MiningStats
 
     public static long getGlobalTotalMinedForDisplay()
     {
-        return Math.max(Math.max(0L, Configs.websiteGlobalTotalBlocks), Math.max(0L, Configs.totalBlocksMined));
+        long websiteTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
+        return websiteTotal > 0L ? websiteTotal : Math.max(0L, Configs.totalBlocksMined);
     }
 
     public static long getCurrentSourceTotalMined()

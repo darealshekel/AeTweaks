@@ -81,9 +81,25 @@ public final class WebsiteProfileTotals
                             return;
                         }
 
-                        Configs.websiteGlobalTotalBlocks = blocksNum;
-                        Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
-                        Configs.saveToFile();
+                        long currentTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
+                        if (currentTotal > 0L && blocksNum < currentTotal)
+                        {
+                            MmmDebugLogger.info(
+                                    "website-profile-total-refresh-stale",
+                                    30_000L,
+                                    "[MMM_SYNC] profile-total-refresh-stale username={} blocksNum={} currentGlobalTotal={}",
+                                    username,
+                                    blocksNum,
+                                    currentTotal);
+                            return;
+                        }
+
+                        if (blocksNum != currentTotal)
+                        {
+                            Configs.websiteGlobalTotalBlocks = blocksNum;
+                            Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
+                            Configs.saveToFile();
+                        }
                         MmmDebugLogger.info(
                                 "website-profile-total-refresh-ok",
                                 30_000L,
