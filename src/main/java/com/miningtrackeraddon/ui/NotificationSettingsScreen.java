@@ -104,6 +104,7 @@ public class NotificationSettingsScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(64);
         field.setDrawsBackground(false);
+        field.setCentered(true);
         field.setEditableColor(MmmUi.TEXT);
         field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);
@@ -218,8 +219,8 @@ public class NotificationSettingsScreen extends Screen
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;
         int headerY = panelY + PANEL_PADDING;
-        int fieldX = contentX + CARD_PADDING;
-        int fieldWidth = contentWidth - CARD_PADDING * 2;
+        int fieldWidth = Math.min(260, contentWidth - CARD_PADDING * 2);
+        int fieldX = contentX + (contentWidth - fieldWidth) / 2;
         int thresholdLabelY = headerY + 112;
         int thresholdFieldY = thresholdLabelY + 14;
         int soundLabelY = thresholdFieldY + 36;

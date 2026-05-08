@@ -97,6 +97,7 @@ public class SummaryScreen extends Screen
         this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
         this.searchField.setMaxLength(64);
         this.searchField.setDrawsBackground(false);
+        this.searchField.setCentered(true);
         this.searchField.setEditableColor(COLOR_VALUE);
         this.searchField.setUneditableColor(COLOR_MUTED);
         this.searchField.setChangedListener(value -> refreshFilteredEntries());
@@ -137,7 +138,9 @@ public class SummaryScreen extends Screen
 
         if (this.searchField != null && this.searchField.getText().isBlank() && this.searchField.isFocused() == false)
         {
-            context.drawText(this.textRenderer, Text.literal(SEARCH_PLACEHOLDER), this.searchField.getX() + 6, this.searchField.getY() + 6, COLOR_MUTED, false);
+            String placeholder = MmmUi.truncate(this.textRenderer, SEARCH_PLACEHOLDER, this.searchField.getWidth() - 12);
+            int placeholderX = this.searchField.getX() + Math.max(6, (this.searchField.getWidth() - this.textRenderer.getWidth(placeholder)) / 2);
+            context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.searchField.getY() + 6, COLOR_MUTED, false);
         }
 
         if (this.clipboardMessageVisible)

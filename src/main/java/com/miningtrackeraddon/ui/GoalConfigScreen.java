@@ -72,10 +72,10 @@ public class GoalConfigScreen extends Screen
 
         super.render(context, mouseX, mouseY, delta);
 
-        if (!isPositive(this.dailyGoalField.getText()) || !isNonNegative(this.dailyProgressField.getText()))
+        if (!isValidGoal(this.dailyGoalField.getText()) || !isNonNegative(this.dailyProgressField.getText()))
         {
             MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Goal must be above 0. Progress must be 0 or more.", layout.contentX + 10, layout.errorY + 8, layout.contentWidth - 20, MmmUi.ERROR, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Goal must be at least 10,000. Progress must be 0 or more.", layout.contentX + 10, layout.errorY + 8, layout.contentWidth - 20, MmmUi.ERROR, false);
         }
     }
 
@@ -110,6 +110,7 @@ public class GoalConfigScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(12);
         field.setDrawsBackground(false);
+        field.setCentered(true);
         field.setEditableColor(MmmUi.TEXT);
         field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);
@@ -130,13 +131,13 @@ public class GoalConfigScreen extends Screen
     {
         if (this.saveButton != null)
         {
-            this.saveButton.active = isPositive(this.dailyGoalField.getText()) && isNonNegative(this.dailyProgressField.getText());
+            this.saveButton.active = isValidGoal(this.dailyGoalField.getText()) && isNonNegative(this.dailyProgressField.getText());
         }
     }
 
     private void saveAndClose()
     {
-        Configs.Generic.DAILY_GOAL.setIntegerValue(Integer.parseInt(this.dailyGoalField.getText()));
+        Configs.Generic.DAILY_GOAL.setIntegerValue(Math.max(Configs.MIN_DAILY_GOAL, Integer.parseInt(this.dailyGoalField.getText())));
         long progress = Long.parseLong(this.dailyProgressField.getText());
         Configs.dailyGoalLastResetMs = System.currentTimeMillis();
         Configs.saveToFile();
@@ -144,11 +145,11 @@ public class GoalConfigScreen extends Screen
         close();
     }
 
-    private boolean isPositive(String value)
+    private boolean isValidGoal(String value)
     {
         try
         {
-            return Integer.parseInt(value) > 0;
+            return Integer.parseInt(value) >= Configs.MIN_DAILY_GOAL;
         }
         catch (NumberFormatException exception)
         {
@@ -205,8 +206,8 @@ public class GoalConfigScreen extends Screen
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;
         int headerY = panelY + PANEL_PADDING;
-        int fieldX = contentX + CARD_PADDING;
-        int fieldWidth = contentWidth - CARD_PADDING * 2;
+        int fieldWidth = Math.min(240, contentWidth - CARD_PADDING * 2);
+        int fieldX = contentX + (contentWidth - fieldWidth) / 2;
         int goalLabelY = headerY + 116;
         int goalFieldY = goalLabelY + 14;
         int progressLabelY = goalFieldY + 32;

@@ -68,8 +68,8 @@ public class ProjectManagerScreen extends Screen
         this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, Configs.PROJECTS.size() - 1));
 
         Layout layout = computeLayout();
-        this.nameField = createField(layout.detailX + CARD_PADDING, layout.detailY + 50, layout.detailWidth - CARD_PADDING * 2, 64);
-        this.progressField = createField(layout.detailX + CARD_PADDING, layout.detailY + 92, layout.detailWidth - CARD_PADDING * 2, 16);
+        this.nameField = createField(getDetailFieldX(layout), layout.detailY + 50, getDetailFieldWidth(layout), 64);
+        this.progressField = createField(getDetailFieldX(layout), layout.detailY + 92, getDetailFieldWidth(layout), 16);
 
         this.applyButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Apply Changes"), button ->
         {
@@ -315,15 +315,15 @@ public class ProjectManagerScreen extends Screen
     {
         if (this.nameField != null)
         {
-            this.nameField.setX(layout.detailX + CARD_PADDING);
+            this.nameField.setX(getDetailFieldX(layout));
             this.nameField.setY(layout.detailY + 50);
-            this.nameField.setWidth(layout.detailWidth - CARD_PADDING * 2);
+            this.nameField.setWidth(getDetailFieldWidth(layout));
         }
         if (this.progressField != null)
         {
-            this.progressField.setX(layout.detailX + CARD_PADDING);
+            this.progressField.setX(getDetailFieldX(layout));
             this.progressField.setY(layout.detailY + 92);
-            this.progressField.setWidth(layout.detailWidth - CARD_PADDING * 2);
+            this.progressField.setWidth(getDetailFieldWidth(layout));
         }
         if (this.applyButton != null)
         {
@@ -362,6 +362,7 @@ public class ProjectManagerScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
+        field.setCentered(true);
         field.setEditableColor(COLOR_VALUE);
         field.setUneditableColor(COLOR_MUTED);
         field.setChangedListener(value -> refreshButtons());
@@ -377,6 +378,16 @@ public class ProjectManagerScreen extends Screen
         }
 
         fillCard(context, field.getX() - 1, field.getY() - 1, field.getWidth() + 2, 22, COLOR_INSET, field.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
+    }
+
+    private int getDetailFieldWidth(Layout layout)
+    {
+        return Math.min(260, layout.detailWidth - CARD_PADDING * 2);
+    }
+
+    private int getDetailFieldX(Layout layout)
+    {
+        return layout.detailX + (layout.detailWidth - getDetailFieldWidth(layout)) / 2;
     }
 
     private void populateFields()

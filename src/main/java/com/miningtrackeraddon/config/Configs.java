@@ -33,6 +33,7 @@ public class Configs implements IConfigHandler
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.MOD_ID + ".json";
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/mmm-sync";
+    public static final int MIN_DAILY_GOAL = 10_000;
 
     public static class Generic
     {
@@ -46,7 +47,7 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger VALIDATION_CLUSTER_BUFFER_SIZE = new ConfigInteger("validationClusterBufferSize", 50, 20, 200, "Recent broken-block buffer size used for repeated cluster farm detection.");
         public static final ConfigInteger VALIDATION_PLACE_BREAK_WINDOW_SECONDS = new ConfigInteger("validationPlaceBreakWindowSeconds", 30, 1, 600, "Seconds after placement during which breaking the same block counts toward place-and-break telemetry.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
-        public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", 1000, 1, 1_000_000, "Daily goal target.");
+        public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
         public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
@@ -146,6 +147,7 @@ public class Configs implements IConfigHandler
     public static void onConfigLoaded()
     {
         boolean syncIdentityGenerated = false;
+        boolean dailyGoalMigrated = false;
 
         if (PROJECTS.isEmpty())
         {
@@ -220,6 +222,11 @@ public class Configs implements IConfigHandler
         websiteGlobalTotalBlocks = Math.max(0L, websiteGlobalTotalBlocks);
         websiteGlobalTotalUpdatedAtMs = Math.max(0L, websiteGlobalTotalUpdatedAtMs);
         websiteLastSuccessfulSyncMs = Math.max(0L, websiteLastSuccessfulSyncMs);
+        if (Generic.DAILY_GOAL.getIntegerValue() < MIN_DAILY_GOAL)
+        {
+            Generic.DAILY_GOAL.setIntegerValue(MIN_DAILY_GOAL);
+            dailyGoalMigrated = true;
+        }
 
         List<Integer> thresholds = getNotificationThresholds();
         thresholds.removeIf(value -> value <= 0 || value > 100);
@@ -232,7 +239,7 @@ public class Configs implements IConfigHandler
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated || migratedLegacySyncEndpoint)
+        if (syncIdentityGenerated || migratedLegacySyncEndpoint || dailyGoalMigrated)
         {
             saveToFile();
         }

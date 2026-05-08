@@ -205,16 +205,19 @@ public class GuiConfigs extends GuiConfigsBase
         @Override
         public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
         {
-            int fill = selected ? MmmUi.ROW_SELECTED : this.listIndex % 2 == 0 ? MmmUi.CARD_SOFT : MmmUi.ROW_ALT;
-            if (this.isMouseOver(mouseX, mouseY))
-            {
-                fill = MmmUi.ROW_HOVER;
-            }
-
             RowBounds bounds = this.getContentBounds();
-            MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), fill, MmmUi.BORDER_SOFT);
+            MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), MmmUi.CARD, MmmUi.BORDER_SOFT);
             this.drawStyledButtonShells(context, mouseX, mouseY);
             super.render(context, mouseX, mouseY, selected);
+        }
+
+        @Override
+        protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
+        {
+            GuiTextFieldGeneric field = super.createTextField(x, y, width, height);
+            field.setCentered(true);
+            field.setDrawsBackground(false);
+            return field;
         }
 
         private void styleGeneratedButtons()

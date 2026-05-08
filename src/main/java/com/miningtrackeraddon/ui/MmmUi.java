@@ -13,13 +13,13 @@ public final class MmmUi
 {
     public static final int BLACK = 0xFF1F1F1F;
     public static final int RED = 0xFFE00000;
-    public static final int OVERLAY = 0xF21F1F1F;
+    public static final int OVERLAY = 0xCC050505;
     public static final int PANEL = BLACK;
-    public static final int CARD = 0xF2141414;
-    public static final int CARD_SOFT = 0xEC101010;
-    public static final int INSET = 0xE8090909;
-    public static final int BORDER = 0xB0181818;
-    public static final int BORDER_SOFT = 0x66222222;
+    public static final int CARD = 0xE6090909;
+    public static final int CARD_SOFT = CARD;
+    public static final int INSET = 0xB8050505;
+    public static final int BORDER = RED;
+    public static final int BORDER_SOFT = 0x99E00000;
     public static final int ACCENT = RED;
     public static final int ACCENT_BRIGHT = RED;
     public static final int ACCENT_SOFT = 0x33E00000;
@@ -62,7 +62,6 @@ public final class MmmUi
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, fillColor);
-        context.fill(x + 1, y + 1, x + width - 1, y + 2, ACCENT_SOFT);
         context.drawBorder(x, y, width, height, borderColor);
     }
 

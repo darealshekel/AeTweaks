@@ -63,9 +63,10 @@ public class WebsiteLinkScreen extends Screen
         int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
         int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
 
-        this.codeField = new TextFieldWidget(this.textRenderer, layout.linkX + CARD_PADDING, layout.linkY + 78, contentInnerWidth, BUTTON_HEIGHT, Text.empty());
+        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout), layout.linkY + 78, getCodeFieldWidth(layout), INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
+        this.codeField.setCentered(true);
         this.codeField.setEditableColor(COLOR_VALUE);
         this.codeField.setUneditableColor(COLOR_MUTED);
         this.codeField.setChangedListener(text -> {
@@ -117,7 +118,9 @@ public class WebsiteLinkScreen extends Screen
 
         if (this.codeField != null && this.codeField.getText().isBlank() && this.codeField.isFocused() == false)
         {
-            context.drawText(this.textRenderer, Text.literal("ENTER WEBSITE CODE"), this.codeField.getX() + 10, this.codeField.getY() + 8, COLOR_MUTED, false);
+            String placeholder = MmmUi.truncate(this.textRenderer, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
+            int placeholderX = this.codeField.getX() + Math.max(5, (this.codeField.getWidth() - this.textRenderer.getWidth(placeholder)) / 2);
+            context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.codeField.getY() + 8, COLOR_MUTED, false);
         }
     }
 
@@ -292,9 +295,9 @@ public class WebsiteLinkScreen extends Screen
 
         if (this.codeField != null)
         {
-            this.codeField.setX(layout.linkX + CARD_PADDING);
+            this.codeField.setX(getCodeFieldX(layout));
             this.codeField.setY(layout.linkY + 78);
-            this.codeField.setWidth(contentInnerWidth);
+            this.codeField.setWidth(getCodeFieldWidth(layout));
         }
         if (this.openButton != null)
         {
@@ -320,6 +323,16 @@ public class WebsiteLinkScreen extends Screen
             this.doneButton.setY(layout.statusSecondaryButtonY);
             this.doneButton.setWidth(layout.statusButtonWidth);
         }
+    }
+
+    private int getCodeFieldWidth(Layout layout)
+    {
+        return Math.min(240, layout.linkWidth - CARD_PADDING * 2);
+    }
+
+    private int getCodeFieldX(Layout layout)
+    {
+        return layout.linkX + (layout.linkWidth - getCodeFieldWidth(layout)) / 2;
     }
 
     private void ensureCursorVisible()
