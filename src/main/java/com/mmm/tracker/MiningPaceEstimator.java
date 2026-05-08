@@ -12,9 +12,13 @@ public final class MiningPaceEstimator
     private static final long UPDATE_INTERVAL_MS = 500L;
     private static final long IDLE_DELAY_MS = 5_000L;
     private static final long IDLE_ZERO_MS = 20_000L;
+    private static final long SESSION_PROGRESS_FLOOR_FULL_STRENGTH_BLOCKS = 1_000L;
+    private static final long SESSION_PROGRESS_FLOOR_IDLE_MS = 120_000L;
     private static final double MAX_REASONABLE_BLOCKS_PER_HOUR = 72_000D;
     private static final double RECENT_SENSITIVITY = 0.68D;
     private static final double SMOOTHING_STRENGTH = 0.62D;
+    private static final double SESSION_PROGRESS_FLOOR_ACTIVE_FACTOR = 0.55D;
+    private static final double SESSION_PROGRESS_FLOOR_IDLE_FACTOR = 0.25D;
     private static final boolean USE_SESSION_FALLBACK = true;
 
     private final Deque<Long> events = new ArrayDeque<>();
@@ -92,6 +96,7 @@ public final class MiningPaceEstimator
         long idleMs = this.lastMineMs <= 0L ? sessionDurationMs : Math.max(0L, now - this.lastMineMs);
         long idleDelayMs = IDLE_DELAY_MS;
         PaceState paceState = MiningTrendAnalyzer.getState(rate10, rate30, rate60, idleMs, idleDelayMs);
+        double sessionProgressFloor = getSessionProgressFloor(sessionRate, sessionBlocks, idleMs, idleDelayMs);
 
         double recentSensitivity = clamp(RECENT_SENSITIVITY, 0.1D, 1.0D);
         double[] weights = buildWeights(paceState, recentSensitivity);
@@ -117,6 +122,10 @@ public final class MiningPaceEstimator
         if (USE_SESSION_FALLBACK && predictedBase <= 0D && idleMs <= idleDelayMs)
         {
             predictedBase = sessionRate;
+        }
+        if (USE_SESSION_FALLBACK && sessionProgressFloor > 0D)
+        {
+            predictedBase = Math.max(predictedBase, sessionProgressFloor);
         }
 
         if (predictedBase > 0D && this.emaBlocksPerHour <= 0D)
@@ -202,6 +211,26 @@ public final class MiningPaceEstimator
                 longWeight / sum,
                 sessionWeight / sum
         };
+    }
+
+    private double getSessionProgressFloor(double sessionRate, long sessionBlocks, long idleMs, long idleDelayMs)
+    {
+        if (sessionBlocks <= 0L || sessionRate <= 0D)
+        {
+            return 0D;
+        }
+
+        double blockConfidence = clamp(sessionBlocks / (double) SESSION_PROGRESS_FLOOR_FULL_STRENGTH_BLOCKS, 0.20D, 1.0D);
+        double idleFactor = SESSION_PROGRESS_FLOOR_ACTIVE_FACTOR;
+
+        if (idleMs > idleDelayMs)
+        {
+            double idleProgress = clamp((idleMs - idleDelayMs) / (double) Math.max(1L, SESSION_PROGRESS_FLOOR_IDLE_MS - idleDelayMs), 0D, 1D);
+            idleFactor = SESSION_PROGRESS_FLOOR_ACTIVE_FACTOR
+                    + (SESSION_PROGRESS_FLOOR_IDLE_FACTOR - SESSION_PROGRESS_FLOOR_ACTIVE_FACTOR) * idleProgress;
+        }
+
+        return sessionRate * blockConfidence * idleFactor;
     }
 
     private double computeConfidence(int count10, int count30, int count60, int count5m, long sessionBlocks, long idleMs, long idleDelayMs)
