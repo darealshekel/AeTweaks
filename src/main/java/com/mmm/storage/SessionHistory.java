@@ -16,7 +16,8 @@ import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SessionHistory
 {
-    private static final long MIN_SESSION_DURATION_MS = 30L * 60L * 1000L;
+    private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
+    private static final long MIN_SESSION_BLOCKS = 1_000L;
     private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions");
     private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.LEGACY_STORAGE_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
@@ -65,7 +66,7 @@ public final class SessionHistory
 
     public static void save(SessionData session)
     {
-        if (session == null || session.getDurationMs() < MIN_SESSION_DURATION_MS)
+        if (session == null || session.getDurationMs() < MIN_SESSION_DURATION_MS || session.totalBlocks < MIN_SESSION_BLOCKS)
         {
             return;
         }
