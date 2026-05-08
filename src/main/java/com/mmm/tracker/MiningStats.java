@@ -33,7 +33,8 @@ public final class MiningStats
 {
     private static final long ONE_HOUR_MS = 3_600_000L;
     private static final long ONE_MINUTE_MS = 60_000L;
-    private static final long MIN_SYNCED_SESSION_DURATION_MS = 15L * 60L * 1000L;
+    private static final long MIN_SYNCED_SESSION_DURATION_MS = 10L * 60L * 1000L;
+    private static final long MIN_SYNCED_SESSION_BLOCKS = 1_000L;
     private static final long STREAK_GAP_MS = 5_000L;
     private static final long FASTEST_100K_TARGET = 100_000L;
     private static final boolean SMART_ETA_ENABLED = true;
@@ -1056,7 +1057,7 @@ public final class MiningStats
     private static boolean shouldPersistSession(SessionData session)
     {
         return session != null
-                && session.totalBlocks > 0L
+                && session.totalBlocks >= MIN_SYNCED_SESSION_BLOCKS
                 && session.getDurationMs() >= MIN_SYNCED_SESSION_DURATION_MS;
     }
 
