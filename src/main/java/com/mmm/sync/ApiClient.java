@@ -11,7 +11,6 @@ import com.mmm.util.MmmDebugLogger;
 
 final class ApiClient
 {
-    private static final String MMM_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_3l5jqZx0ygv9BOX3To0laQ_uqcyzEqd";
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10L))
             .build();
@@ -48,11 +47,6 @@ final class ApiClient
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
 
-        if (isSupabaseFunctionEndpoint(endpoint))
-        {
-            builder.header("apikey", MMM_SUPABASE_PUBLISHABLE_KEY);
-        }
-
         if (secret != null && secret.isBlank() == false)
         {
             builder.header("x-sync-secret", secret);
@@ -72,26 +66,18 @@ final class ApiClient
         return builder.build();
     }
 
-    private static boolean isSupabaseFunctionEndpoint(String endpoint)
-    {
-        return endpoint != null
-                && endpoint.startsWith("https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/");
-    }
-
     private static void logSend(String endpoint, String jsonBody, Map<String, String> extraHeaders, String secret)
     {
         int bodyLength = jsonBody == null ? 0 : jsonBody.length();
-        boolean supabasePublishableKey = isSupabaseFunctionEndpoint(endpoint);
         boolean syncSecret = secret != null && secret.isBlank() == false;
         int extraHeaderCount = extraHeaders == null ? 0 : extraHeaders.size();
 
         MmmDebugLogger.info(
                 "api-client-http-request",
                 10_000L,
-                "[MMM_SYNC] http-request endpoint={} bodyLength={} supabasePublishableKey={} syncSecretHeader={} extraHeaderCount={}",
+                "[MMM_SYNC] http-request endpoint={} bodyLength={} syncSecretHeader={} extraHeaderCount={}",
                 endpoint,
                 bodyLength,
-                supabasePublishableKey,
                 syncSecret,
                 extraHeaderCount);
     }

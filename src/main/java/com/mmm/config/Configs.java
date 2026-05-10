@@ -33,7 +33,7 @@ public class Configs implements IConfigHandler
 {
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.LEGACY_STORAGE_ID + ".json";
-    private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://jmspoiryzfilppiovhmf.supabase.co/functions/v1/mmm-sync";
+    private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     private static final String LEGACY_ENDPOINT_BRAND = "aet" + "weaks";
     public static final int MIN_DAILY_GOAL = 10_000;
 

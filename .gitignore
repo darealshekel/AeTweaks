@@ -5,3 +5,4 @@ run/
 gradle/
 gradlew
 gradlew.bat
+.codex/
