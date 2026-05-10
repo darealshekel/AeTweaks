@@ -35,10 +35,13 @@ public final class CloudSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
+    // Minimum gap between light-only heartbeats when payload data has not changed.
+    private static final long LIGHT_HEARTBEAT_INTERVAL_MS = 5 * 60_000L;
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
     private static long lastAeternumScoreboardSyncMs;
+    private static long lastLightHeartbeatMs;
     private static volatile SyncStatus syncStatus = SyncStatus.CONNECTED;
     private static volatile String syncStatusDetail = "";
     private static volatile long lastHealthySignalMs;
@@ -107,7 +110,25 @@ public final class CloudSyncManager
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
+        JsonObject fullPayload = buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus());
+        String fingerprint = livePayloadFingerprint(fullPayload);
+        boolean fingerprintChanged = fingerprint != null && fingerprint.equals(lastSuccessfulLiveFingerprint) == false;
+
+        if (fingerprintChanged)
+        {
+            // Data changed since last successful sync — send full payload.
+            queueLivePayload(fullPayload, true);
+        }
+        else
+        {
+            // Nothing changed. Only send a lightweight heartbeat if enough time has passed.
+            long lastHeavySentMs = Math.max(lastLightHeartbeatMs, Configs.websiteLastSuccessfulSyncMs);
+            if (now - lastHeavySentMs >= LIGHT_HEARTBEAT_INTERVAL_MS)
+            {
+                lastLightHeartbeatMs = now;
+                queueLivePayload(buildLightPayload(liveSession), true);
+            }
+        }
     }
 
     public static void syncNow(String reason)
@@ -348,6 +369,7 @@ public final class CloudSyncManager
         lastHeartbeatMs = 0L;
         lastLiveBlockSyncMs = 0L;
         lastAeternumScoreboardSyncMs = 0L;
+        lastLightHeartbeatMs = 0L;
         lastQueuedLiveFingerprint = null;
         lastSuccessfulLiveFingerprint = null;
         lastSuccessfulLeaderboardFingerprint = null;
@@ -392,7 +414,8 @@ public final class CloudSyncManager
         lastLiveBlockSyncMs = now;
         lastHeartbeatMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
+        // force=false: fingerprint deduplication prevents re-sending identical data.
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), false);
     }
 
     private static void queueLivePayload(JsonObject payload)
@@ -588,6 +611,34 @@ public final class CloudSyncManager
         }
 
         return MiningStats.isSessionPaused() ? "paused" : "active";
+    }
+
+    /**
+     * Lightweight payload for keep-alive heartbeats when no data has changed.
+     * Omits heavy fields (aeternum_leaderboard, block breakdowns, source scan)
+     * to avoid redundant large transfers.
+     */
+    private static JsonObject buildLightPayload(SessionData session)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("client_id", Configs.cloudClientId);
+        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
+        payload.addProperty("username", resolveUsername(client));
+        payload.addProperty("mod_version", Reference.MOD_VERSION);
+        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("light_heartbeat", true);
+        payload.add("world", buildWorld(worldInfo));
+        payload.add("lifetime_totals", buildLifetimeTotals());
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
+        payload.add("session_state", buildSessionState());
+        payload.add("daily_goal", buildDailyGoal(dailyGoal));
+        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
+        return payload;
     }
 
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
