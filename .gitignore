@@ -2,3 +2,6 @@
 build/
 run/
 .aider*
+gradle/
+gradlew
+gradlew.bat

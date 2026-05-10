@@ -2,6 +2,7 @@ package com.mmm.event;
 
 import com.mmm.hud.SummaryScreen;
 import com.mmm.storage.SessionData;
+import com.mmm.tracker.MiningSpeedTracker;
 
 import fi.dy.masa.malilib.interfaces.IClientTickHandler;
 import net.minecraft.client.MinecraftClient;
@@ -17,6 +18,7 @@ public class ClientTickHandler implements IClientTickHandler
         }
 
         com.mmm.tracker.MiningStats.onClientTick();
+        MiningSpeedTracker.tick(mc);
 
         SessionData pending = WorldLoadListener.consumePendingSummary();
         if (pending != null && mc.player == null && mc.world == null)
