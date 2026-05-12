@@ -234,27 +234,25 @@ public class MmmSettingsScreen extends Screen
 
         int gridY = y + 44;
         int columnW = Math.max(210, (width - GAP) / 2);
-        int rowY = gridY;
-        int sectionIndex = 0;
+        int leftY = gridY;
+        int rightY = gridY;
 
-        while (sectionIndex < this.sections.size())
+        for (SettingsSection section : this.sections)
         {
-            SettingsSection left = this.sections.get(sectionIndex++);
-            SettingsSection right = sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
-            int leftHeight = this.sectionHeight(left);
-            int rightHeight = right == null ? 0 : this.sectionHeight(right);
-            int rowHeight = Math.max(leftHeight, rightHeight);
+            int sectionH = this.sectionHeight(section);
 
-            this.sectionY.put(left, rowY);
-            this.drawSection(context, left, x, rowY, columnW, leftHeight, mouseX, mouseY);
-
-            if (right != null)
+            if (leftY <= rightY)
             {
-                this.sectionY.put(right, rowY);
-                this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rightHeight, mouseX, mouseY);
+                this.sectionY.put(section, leftY);
+                this.drawSection(context, section, x, leftY, columnW, sectionH, mouseX, mouseY);
+                leftY += sectionH + GAP;
             }
-
-            rowY += rowHeight + GAP;
+            else
+            {
+                this.sectionY.put(section, rightY);
+                this.drawSection(context, section, x + columnW + GAP, rightY, columnW, sectionH, mouseX, mouseY);
+                rightY += sectionH + GAP;
+            }
         }
     }
 
@@ -522,36 +520,28 @@ public class MmmSettingsScreen extends Screen
 
     private void updateLayout()
     {
-        int viewportW = this.width - SIDEBAR_WIDTH - PAGE_PAD * 2;
-        int columnW = Math.max(210, (viewportW - GAP) / 2);
-        int rowY = 44;
-        int index = 0;
-        while (index < this.sections.size())
+        int leftY = 44;
+        int rightY = 44;
+
+        for (SettingsSection section : this.sections)
         {
-            SettingsSection left = this.sections.get(index++);
-            SettingsSection right = index < this.sections.size() ? this.sections.get(index++) : null;
-            int rowHeight = this.sectionHeight(left);
-            if (right != null)
+            int sectionH = this.sectionHeight(section);
+
+            if (leftY <= rightY)
             {
-                rowHeight = Math.max(rowHeight, this.sectionHeight(right));
+                section.setAbsoluteOffset(leftY);
+                leftY += sectionH + GAP;
             }
-            left.setAbsoluteOffset(rowY);
-            if (right != null)
+            else
             {
-                right.setAbsoluteOffset(rowY);
+                section.setAbsoluteOffset(rightY);
+                rightY += sectionH + GAP;
             }
-            rowY += rowHeight + GAP;
         }
-        this.contentHeight = rowY + 26;
+        this.contentHeight = Math.max(leftY, rightY) + 26;
 
         int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - PAGE_PAD));
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
-
-        // Keep Java from warning about the calculated column width being intentionally shared with render math.
-        if (columnW < 0)
-        {
-            this.scrollY = 0.0D;
-        }
     }
 
     private int sectionHeight(SettingsSection section)

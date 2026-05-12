@@ -318,9 +318,9 @@ public class ProjectManagerScreen extends Screen
     {
         if (this.nameField != null)
         {
-            this.nameField.setX(getDetailFieldX(layout));
-            this.nameField.setY(layout.detailY + 50);
-            this.nameField.setWidth(getDetailFieldWidth(layout));
+            this.nameField.setX(getDetailFieldX(layout) + FIELD_PAD_X);
+            this.nameField.setY(layout.detailY + 50 + FIELD_PAD_Y);
+            this.nameField.setWidth(getDetailFieldWidth(layout) - FIELD_PAD_X * 2);
         }
         if (this.applyButton != null)
         {
@@ -354,9 +354,13 @@ public class ProjectManagerScreen extends Screen
         return layout.listY + layout.listHeight - CARD_PADDING - BUTTON_HEIGHT - 4;
     }
 
+    private static final int FIELD_SHELL_HEIGHT = 22;
+    private static final int FIELD_PAD_X = 5;
+    private static final int FIELD_PAD_Y = 6;
+
     private TextFieldWidget createField(int x, int y, int width, int maxLength)
     {
-        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
+        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x + FIELD_PAD_X, y + FIELD_PAD_Y, width - FIELD_PAD_X * 2, 20, Text.empty());
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
         field.setCentered(false);
@@ -374,7 +378,9 @@ public class ProjectManagerScreen extends Screen
             return;
         }
 
-        fillCard(context, field.getX() - 1, field.getY() - 1, field.getWidth() + 2, 22, COLOR_INSET, field.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
+        int shellX = field.getX() - FIELD_PAD_X;
+        int shellY = field.getY() - FIELD_PAD_Y;
+        fillCard(context, shellX, shellY, field.getWidth() + FIELD_PAD_X * 2, FIELD_SHELL_HEIGHT, COLOR_INSET, field.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
     }
 
     private int getDetailFieldWidth(Layout layout)

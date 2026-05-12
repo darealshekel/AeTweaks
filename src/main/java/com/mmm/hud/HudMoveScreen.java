@@ -59,9 +59,14 @@ public class HudMoveScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
+        if (super.mouseClicked(mouseX, mouseY, button))
+        {
+            return true;
+        }
+
         if (button != 0)
         {
-            return super.mouseClicked(mouseX, mouseY, button);
+            return false;
         }
 
         int[] bounds = MiningHudRenderer.getBounds(MinecraftClient.getInstance());
@@ -72,7 +77,7 @@ public class HudMoveScreen extends Screen
             dragOffsetY = (int) mouseY - bounds[1];
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return false;
     }
 
     @Override

@@ -26,6 +26,8 @@ public class WebsiteLinkScreen extends Screen
     private static final int BUTTON_ROW_GAP = 10;
     private static final int HEADER_TEXT_WIDTH = 460;
     private static final int INPUT_HEIGHT = 24;
+    private static final int FIELD_PAD_X = 5;
+    private static final int FIELD_PAD_Y = 7;
     private static final int COLOR_PANEL = MmmUi.PANEL;
     private static final int COLOR_CARD = MmmUi.CARD;
     private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
@@ -63,7 +65,7 @@ public class WebsiteLinkScreen extends Screen
         int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
         int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
 
-        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout), layout.linkY + 78, getCodeFieldWidth(layout), INPUT_HEIGHT, Text.empty());
+        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
         this.codeField.setCentered(false);
@@ -120,8 +122,7 @@ public class WebsiteLinkScreen extends Screen
         if (this.codeField != null && this.codeField.getText().isBlank() && this.codeField.isFocused() == false)
         {
             String placeholder = MmmUi.truncate(this.textRenderer, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
-            int placeholderX = this.codeField.getX() + 5;
-            context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.codeField.getY() + 8, COLOR_MUTED, false);
+            context.drawText(this.textRenderer, Text.literal(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
         }
         MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
@@ -264,9 +265,9 @@ public class WebsiteLinkScreen extends Screen
             return;
         }
 
-        int x = this.codeField.getX() - 1;
-        int y = this.codeField.getY() - 1;
-        int width = this.codeField.getWidth() + 2;
+        int x = this.codeField.getX() - FIELD_PAD_X;
+        int y = this.codeField.getY() - FIELD_PAD_Y;
+        int width = this.codeField.getWidth() + FIELD_PAD_X * 2;
         int height = INPUT_HEIGHT;
         fillCard(context, x, y, width, height, COLOR_INSET, this.codeField.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
     }
@@ -308,9 +309,9 @@ public class WebsiteLinkScreen extends Screen
 
         if (this.codeField != null)
         {
-            this.codeField.setX(getCodeFieldX(layout));
-            this.codeField.setY(layout.linkY + 78);
-            this.codeField.setWidth(getCodeFieldWidth(layout));
+            this.codeField.setX(getCodeFieldX(layout) + FIELD_PAD_X);
+            this.codeField.setY(layout.linkY + 78 + FIELD_PAD_Y);
+            this.codeField.setWidth(getCodeFieldWidth(layout) - FIELD_PAD_X * 2);
         }
         if (this.openButton != null)
         {
