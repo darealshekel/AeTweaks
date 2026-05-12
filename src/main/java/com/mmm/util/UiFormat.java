@@ -5,7 +5,6 @@ import java.text.DecimalFormatSymbols;
 import java.util.Locale;
 
 import com.mmm.config.Configs;
-import com.mmm.tracker.MiningPaceEstimator;
 import com.mmm.tracker.MiningStats;
 
 public final class UiFormat
@@ -98,18 +97,6 @@ public final class UiFormat
         }
 
         return minutes + "m " + remainingSeconds + "s";
-    }
-
-    public static String formatPaceState(MiningPaceEstimator.PaceState paceState)
-    {
-        return switch (paceState)
-        {
-            case RAMPING_UP -> "Ramping Up";
-            case STABLE -> "Stable";
-            case SLOWING -> "Slowing";
-            case PAUSED -> "Paused";
-            default -> "Calculating";
-        };
     }
 
     public static String formatConfidence(double confidence)

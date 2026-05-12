@@ -70,10 +70,11 @@ public class Configs implements IConfigHandler
         public static final ConfigDouble BLOCK_ESP_RAINBOW_SPEED = new ConfigDouble("blockEspRainbowSpeed", 1.0D, 0.1D, 10.0D, "Block ESP rainbow animation speed multiplier.");
         public static final ConfigColor GRAPH_LINE_HEX_COLOR = new ConfigColor("graphLineHexColor", "#E00000", "Speed graph line color.");
         public static final ConfigColor GRAPH_FILL_HEX_COLOR = new ConfigColor("graphFillHexColor", "#E00000", "Speed graph fill color.");
-        public static final ConfigInteger GRAPH_FILL_OPACITY = new ConfigInteger("graphFillOpacity", 75, 0, 100, "Speed graph fill opacity percentage.");
-        public static final ConfigColor GRAPH_GRID_HEX_COLOR = new ConfigColor("graphGridHexColor", "#E00000", "Speed graph grid line color.");
-        public static final ConfigInteger GRAPH_GRID_OPACITY = new ConfigInteger("graphGridOpacity", 16, 0, 100, "Speed graph grid line opacity percentage.");
-        public static final ConfigInteger GRAPH_SCALE_STEP = new ConfigInteger("graphScaleStep", 300, 50, 1000, "Speed graph Y-axis grid interval (blocks/hr).");
+        public static final ConfigInteger GRAPH_FILL_OPACITY = new ConfigInteger("graphFillOpacity", 42, 0, 100, "Speed graph fill opacity percentage.");
+        public static final ConfigColor GRAPH_GRID_HEX_COLOR = new ConfigColor("graphGridHexColor", "#FFC8C8C8", "Speed graph grid line color.");
+        public static final ConfigInteger GRAPH_GRID_OPACITY = new ConfigInteger("graphGridOpacity", 27, 0, 100, "Speed graph grid line opacity percentage.");
+        public static final ConfigInteger GRAPH_BG_OPACITY = new ConfigInteger("graphBgOpacity", 75, 0, 100, "Speed graph background opacity percentage.");
+        public static final ConfigInteger GRAPH_SCALE_STEP = new ConfigInteger("graphScaleStep", 100, 50, 1000, "Speed graph Y-axis grid interval (blocks/hr).");
         public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
@@ -102,6 +103,7 @@ public class Configs implements IConfigHandler
                 GRAPH_LINE_HEX_COLOR,
                 GRAPH_FILL_HEX_COLOR,
                 GRAPH_FILL_OPACITY,
+                GRAPH_BG_OPACITY,
                 GRAPH_GRID_HEX_COLOR,
                 GRAPH_GRID_OPACITY,
                 GRAPH_SCALE_STEP
@@ -139,6 +141,7 @@ public class Configs implements IConfigHandler
                 GRAPH_LINE_HEX_COLOR,
                 GRAPH_FILL_HEX_COLOR,
                 GRAPH_FILL_OPACITY,
+                GRAPH_BG_OPACITY,
                 GRAPH_GRID_HEX_COLOR,
                 GRAPH_GRID_OPACITY,
                 GRAPH_SCALE_STEP,
@@ -280,8 +283,9 @@ public class Configs implements IConfigHandler
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
         Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"));
         Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"));
-        Generic.GRAPH_GRID_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#E00000"));
+        Generic.GRAPH_GRID_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#FFC8C8C8"));
         Generic.GRAPH_FILL_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_FILL_OPACITY.getIntegerValue())));
+        Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
         if (syncIdentityGenerated || migratedLegacySyncEndpoint || dailyGoalMigrated)
@@ -475,8 +479,9 @@ public class Configs implements IConfigHandler
 
     public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"); }
     public static int getGraphFillColor()  { return parseOpaqueHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"); }
-    public static int getGraphGridColor()  { return parseOpaqueHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#E00000"); }
+    public static int getGraphGridColor()  { return parseOpaqueHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#FFC8C8C8"); }
     public static float getGraphFillOpacity() { return Generic.GRAPH_FILL_OPACITY.getIntegerValue() / 100.0F; }
+    public static float getGraphBgOpacity() { return Generic.GRAPH_BG_OPACITY.getIntegerValue() / 100.0F; }
     public static float getGraphGridOpacity() { return Generic.GRAPH_GRID_OPACITY.getIntegerValue() / 100.0F; }
     public static float getGraphScaleStep() { return (float) Generic.GRAPH_SCALE_STEP.getIntegerValue(); }
 

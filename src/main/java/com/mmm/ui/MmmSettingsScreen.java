@@ -764,6 +764,15 @@ public class MmmSettingsScreen extends Screen
         this.sections.add(SettingsSection.performance(
                 new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
         ));
+        this.sections.add(SettingsSection.speedGraph(
+                new SettingRow("Background Opacity", "Graph background transparency.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Line Color", "Speed graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Fill Color", "Speed graph area fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Fill Opacity", "Speed graph fill opacity percentage.", Configs.Generic.GRAPH_FILL_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Grid Color", "Speed graph grid line color.", Configs.Generic.GRAPH_GRID_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Grid Opacity", "Speed graph grid line opacity percentage.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
+        ));
         this.sections.add(SettingsSection.blockEsp(
                 new SettingRow("Color Mode", "Block ESP color mode.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
                 new SettingRow("Custom Color", "Used when color mode is Single Color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
@@ -781,6 +790,7 @@ public class MmmSettingsScreen extends Screen
         HUD("HUD"),
         COLORS("Colors"),
         PERFORMANCE("Performance"),
+        SPEED_GRAPH("Speed Graph"),
         BLOCK_ESP("Block ESP"),
         ABOUT("About");
 
@@ -881,6 +891,11 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection performance(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.PERFORMANCE, "PERFORMANCE", "Rolling speed metric behavior.", List.of(rows));
+        }
+
+        private static SettingsSection speedGraph(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.SPEED_GRAPH, "SPEED GRAPH", "Speed graph colors and grid lines.", List.of(rows));
         }
 
         private static SettingsSection blockEsp(SettingRow... rows)

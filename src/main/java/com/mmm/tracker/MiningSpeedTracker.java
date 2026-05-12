@@ -8,7 +8,7 @@ import net.minecraft.util.math.BlockPos;
 public final class MiningSpeedTracker
 {
     private static final int GRAPH_BUFFER_SIZE = 200;
-    private static final int SESSION_TIMEOUT_TICKS = 180 * 20;
+
 
     private static BlockPos lastBlockPos = null;
 
@@ -51,20 +51,22 @@ public final class MiningSpeedTracker
             lastBlockPos = blockPos.toImmutable();
         }
 
-        pushHistory(MiningStats.getDisplayedBlocksPerHour());
+        if (!MiningStats.isSessionPaused())
+        {
+            pushHistory(MiningStats.getDisplayedBlocksPerHour());
+        }
     }
 
     private static void tickIdle()
     {
         if (!hasSessionData) return;
 
-        pushHistory(MiningStats.getDisplayedBlocksPerHour());
+        if (!MiningStats.isSessionPaused())
+        {
+            pushHistory(MiningStats.getDisplayedBlocksPerHour());
+        }
 
         idleTicks++;
-        if (idleTicks >= SESSION_TIMEOUT_TICKS)
-        {
-            resetSession();
-        }
     }
 
     private static void pushHistory(float blocksPerHour)

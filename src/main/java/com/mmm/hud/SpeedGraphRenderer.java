@@ -30,8 +30,10 @@ public final class SpeedGraphRenderer
 
         int[] hudBounds = MiningHudRenderer.getBounds(client);
         int x = hudBounds[0];
-        int y = hudBounds[3] + GAP;
         int width = hudBounds[2] - hudBounds[0];
+        int screenHeight = client.getWindow().getScaledHeight();
+        boolean graphFitsBelow = hudBounds[3] + GAP + GRAPH_HEIGHT <= screenHeight;
+        int y = graphFitsBelow ? hudBounds[3] + GAP : hudBounds[1] - GAP - GRAPH_HEIGHT;
 
         float[] history = MiningSpeedTracker.getSpeedHistory();
         int writeIdx = MiningSpeedTracker.getHistoryIndex();
@@ -60,7 +62,8 @@ public final class SpeedGraphRenderer
 
         float opacity = computeOpacity();
 
-        int bgColor = applyOpacity(MmmUi.INSET, opacity);
+        float bgOpacity = Configs.getGraphBgOpacity();
+        int bgColor = applyOpacity(MmmUi.INSET, opacity * bgOpacity);
         context.fill(x, y, x + width, y + GRAPH_HEIGHT, bgColor);
 
         int baseFillAlpha = Math.round(Configs.getGraphFillOpacity() * 255);
@@ -86,7 +89,9 @@ public final class SpeedGraphRenderer
             context.fill(colX, colTop, colX + 1, colTop + 1, lineColor);
         }
 
-        renderGridLines(context, client.textRenderer, x, y, width, floor, ceiling, opacity, scaleStep);
+        int screenWidth = client.getWindow().getScaledWidth();
+        boolean labelsOnLeft = (x + width / 2) > screenWidth / 2;
+        renderGridLines(context, client.textRenderer, x, y, width, floor, ceiling, opacity, scaleStep, labelsOnLeft);
     }
 
     private static float computeOpacity()
@@ -120,7 +125,7 @@ public final class SpeedGraphRenderer
     }
 
     private static void renderGridLines(DrawContext context, TextRenderer font,
-            int startX, int startY, int width, float floor, float ceiling, float opacity, float scaleStep)
+            int startX, int startY, int width, float floor, float ceiling, float opacity, float scaleStep, boolean labelsOnLeft)
     {
         if (ceiling <= floor) return;
 
@@ -146,7 +151,7 @@ public final class SpeedGraphRenderer
             context.fill(startX, gridY, startX + width, gridY + 1, gridColor);
 
             String label = Math.round(val) + "";
-            int labelX = startX + width + 2;
+            int labelX = labelsOnLeft ? startX - font.getWidth(label) - 2 : startX + width + 2;
             context.drawText(font, label, labelX, gridY - 3, labelColor, true);
         }
     }
