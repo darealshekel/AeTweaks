@@ -27,7 +27,7 @@ public class WebsiteLinkScreen extends Screen
     private static final int HEADER_TEXT_WIDTH = 460;
     private static final int INPUT_HEIGHT = 24;
     private static final int FIELD_PAD_X = 5;
-    private static final int FIELD_PAD_Y = 7;
+    private static final int FIELD_PAD_Y = 8;
     private static final int COLOR_PANEL = MmmUi.PANEL;
     private static final int COLOR_CARD = MmmUi.CARD;
     private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;

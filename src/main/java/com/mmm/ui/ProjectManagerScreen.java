@@ -356,7 +356,7 @@ public class ProjectManagerScreen extends Screen
 
     private static final int FIELD_SHELL_HEIGHT = 22;
     private static final int FIELD_PAD_X = 5;
-    private static final int FIELD_PAD_Y = 6;
+    private static final int FIELD_PAD_Y = 7;
 
     private TextFieldWidget createField(int x, int y, int width, int maxLength)
     {

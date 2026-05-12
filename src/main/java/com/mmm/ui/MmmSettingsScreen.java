@@ -237,11 +237,12 @@ public class MmmSettingsScreen extends Screen
         int leftY = gridY;
         int rightY = gridY;
 
-        for (SettingsSection section : this.sections)
+        for (int i = 0; i < this.sections.size(); i++)
         {
+            SettingsSection section = this.sections.get(i);
             int sectionH = this.sectionHeight(section);
 
-            if (leftY <= rightY)
+            if ((i & 1) == 0)
             {
                 this.sectionY.put(section, leftY);
                 this.drawSection(context, section, x, leftY, columnW, sectionH, mouseX, mouseY);
@@ -378,7 +379,7 @@ public class MmmSettingsScreen extends Screen
         }
 
         field.setX(fieldX + 5);
-        field.setY(y + 4);
+        field.setY(y + 5);
         field.setWidth(Math.max(24, fieldW - 10));
         field.setEditableColor(TEXT);
         field.setUneditableColor(MUTED);
@@ -523,11 +524,12 @@ public class MmmSettingsScreen extends Screen
         int leftY = 44;
         int rightY = 44;
 
-        for (SettingsSection section : this.sections)
+        for (int i = 0; i < this.sections.size(); i++)
         {
+            SettingsSection section = this.sections.get(i);
             int sectionH = this.sectionHeight(section);
 
-            if (leftY <= rightY)
+            if ((i & 1) == 0)
             {
                 section.setAbsoluteOffset(leftY);
                 leftY += sectionH + GAP;
