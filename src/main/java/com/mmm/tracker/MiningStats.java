@@ -299,13 +299,16 @@ public final class MiningStats
             pausedAtMs = 0L;
             sessionPaused = false;
             sessionAutoPaused = false;
+            rollingBlocksPerHour = calculateSessionBph();
+            rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
+            updateDisplayedRollingMetrics();
         }
         else
         {
             pausedAtMs = now;
             sessionPaused = true;
             sessionAutoPaused = false;
-            clearRollingBph();
+            freezeRollingMetrics();
         }
 
         CloudSyncManager.syncHeartbeat();
@@ -921,9 +924,11 @@ public final class MiningStats
 
     private static void recordSuccessfulHarvestForRollingMetrics()
     {
-        currentTickBpsBlocks++;
-        if (isSessionPaused() == false)
+        boolean sessionOnly = FeatureToggle.TWEAK_SESSION_ONLY_SPEED.getBooleanValue();
+        boolean canTrack = sessionOnly ? (sessionActive && !sessionPaused) : !isSessionPaused();
+        if (canTrack)
         {
+            currentTickBpsBlocks++;
             currentTickBphBlocks++;
         }
     }
@@ -933,6 +938,20 @@ public final class MiningStats
         if (hasMiningContext == false)
         {
             resetRollingMetrics();
+            return;
+        }
+
+        boolean sessionOnly = FeatureToggle.TWEAK_SESSION_ONLY_SPEED.getBooleanValue();
+
+        if (sessionPaused)
+        {
+            return;
+        }
+
+        if (sessionOnly && !sessionActive)
+        {
+            displayedBlocksPerSecond = 0D;
+            displayedBlocksPerHour = 0D;
             return;
         }
 
@@ -953,37 +972,31 @@ public final class MiningStats
 
         if (metricTickIndex - lastBpsUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
-            if (!sessionPaused)
-            {
-                rollingBlocksPerSecond = calculateRollingBps(mode);
-            }
+            rollingBlocksPerSecond = calculateRollingBps(mode);
             lastBpsUpdateTick = metricTickIndex;
         }
 
         if (metricTickIndex - lastBphUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
-            if (!sessionPaused)
-            {
-                rollingBlocksPerHour = calculateSessionBph();
-                updateCurrentSessionPeakFromRollingBph();
+            rollingBlocksPerHour = calculateSessionBph();
+            updateCurrentSessionPeakFromRollingBph();
 
-                if (MmmDebugLogger.isEnabled())
+            if (MmmDebugLogger.isEnabled())
+            {
+                int dbgTicks = METRIC_TICK_COUNTS.size();
+                int dbgBlocks = 0;
+                for (TickBlockCount t : METRIC_TICK_COUNTS)
                 {
-                    int dbgTicks = METRIC_TICK_COUNTS.size();
-                    int dbgBlocks = 0;
-                    for (TickBlockCount t : METRIC_TICK_COUNTS)
-                    {
-                        dbgBlocks += Math.max(0, t.bphBlocks());
-                    }
-                    MMM.LOGGER.info(
-                            "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
-                            dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
+                    dbgBlocks += Math.max(0, t.bphBlocks());
                 }
+                MMM.LOGGER.info(
+                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
+                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
             }
             lastBphUpdateTick = metricTickIndex;
         }
 
-        if (sessionActive && !sessionPaused)
+        if (sessionActive)
         {
             sessionActiveTicks++;
         }
@@ -1022,20 +1035,13 @@ public final class MiningStats
         }
     }
 
-    private static void clearRollingBph()
+    private static void freezeRollingMetrics()
     {
-        if (METRIC_TICK_COUNTS.isEmpty() == false)
-        {
-            Deque<TickBlockCount> bpsOnlyTicks = new ArrayDeque<>();
-            for (TickBlockCount tick : METRIC_TICK_COUNTS)
-            {
-                bpsOnlyTicks.addLast(new TickBlockCount(tick.tickIndex(), tick.bpsBlocks(), 0));
-            }
-            METRIC_TICK_COUNTS.clear();
-            METRIC_TICK_COUNTS.addAll(bpsOnlyTicks);
-        }
+        currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
+        rollingBlocksPerSecond = 0D;
         rollingBlocksPerHour = 0D;
+        displayedBlocksPerSecond = 0D;
         displayedBlocksPerHour = 0D;
     }
 
@@ -1217,7 +1223,7 @@ public final class MiningStats
         sessionPaused = true;
         sessionAutoPaused = true;
         autoMiningStreakStartMs = 0L;
-        clearRollingBph();
+        freezeRollingMetrics();
         CloudSyncManager.syncHeartbeat();
         MmmDebugLogger.info(
                 "miningstats-auto-pause",
@@ -1232,6 +1238,9 @@ public final class MiningStats
         pausedAtMs = 0L;
         sessionPaused = false;
         sessionAutoPaused = false;
+        rollingBlocksPerHour = calculateSessionBph();
+        rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
+        updateDisplayedRollingMetrics();
         CloudSyncManager.syncHeartbeat();
         MmmDebugLogger.info(
                 "miningstats-auto-resume",

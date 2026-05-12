@@ -34,7 +34,8 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows BPH (blocks per hour) and BPS (blocks per second) in the HUD."),
     TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows ETA to the daily goal in the HUD."),
     TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Draws a panel border and background around the mining HUD."),
-    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows a real-time mining speed graph below the HUD.");
+    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows a real-time mining speed graph below the HUD."),
+    TWEAK_SESSION_ONLY_SPEED("tweakSessionOnlySpeed", true, "", "Only calculate BPS and BPH during an active session.");
 
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
 
