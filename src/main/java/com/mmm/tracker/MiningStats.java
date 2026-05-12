@@ -42,7 +42,6 @@ public final class MiningStats
     private static final long AUTO_PAUSE_IDLE_MS = 90_000L;
     private static final long FASTEST_100K_TARGET = 100_000L;
     private static final int TICKS_PER_SECOND = 20;
-    private static final int METRIC_UPDATE_INTERVAL_TICKS = 20;
     private static final int BPH_WINDOW_TICKS = 72_000;
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
     private static final int BPS_WINDOW_TICKS = 100;
@@ -73,8 +72,9 @@ public final class MiningStats
     private static long lastValidBlockMineMs;
     private static boolean sessionAutoPaused;
     private static long metricTickIndex;
-    private static long lastMetricUpdateTick;
     private static long lastBpsUpdateTick;
+    private static long lastBphUpdateTick;
+    private static long sessionActiveTicks;
     private static int currentTickBpsBlocks;
     private static int currentTickBphBlocks;
     private static double rollingBlocksPerSecond;
@@ -263,6 +263,7 @@ public final class MiningStats
         autoMiningStreakStartMs = 0L;
         lastValidBlockMineMs = 0L;
         sessionAutoPaused = false;
+        sessionActiveTicks = 0L;
     }
 
     public static void startNewSession()
@@ -855,7 +856,6 @@ public final class MiningStats
         lastBpsSmoothing = Configs.getBpsSmoothingMode();
         trimMetricWindow();
         rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
-        lastMetricUpdateTick = metricTickIndex;
         lastBpsUpdateTick = metricTickIndex;
     }
 
@@ -1032,7 +1032,6 @@ public final class MiningStats
             lastBpsSmoothing = mode;
             trimMetricWindow();
             rollingBlocksPerSecond = calculateRollingBps(mode);
-            lastMetricUpdateTick = metricTickIndex;
             lastBpsUpdateTick = metricTickIndex;
         }
 
@@ -1048,11 +1047,11 @@ public final class MiningStats
             lastBpsUpdateTick = metricTickIndex;
         }
 
-        if (metricTickIndex - lastMetricUpdateTick >= METRIC_UPDATE_INTERVAL_TICKS)
+        if (metricTickIndex - lastBphUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
-            rollingBlocksPerHour = sessionPaused ? 0D : calculateRollingBph();
+            rollingBlocksPerHour = sessionPaused ? 0D : calculateSessionBph();
             updateCurrentSessionPeakFromRollingBph();
-            lastMetricUpdateTick = metricTickIndex;
+            lastBphUpdateTick = metricTickIndex;
 
             if (MmmDebugLogger.isEnabled())
             {
@@ -1063,10 +1062,16 @@ public final class MiningStats
                     dbgBlocks += Math.max(0, t.bphBlocks());
                 }
                 MMM.LOGGER.info(
-                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={}",
-                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive);
+                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
+                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
             }
         }
+
+        if (sessionActive && !sessionPaused)
+        {
+            sessionActiveTicks++;
+        }
+
         updateDisplayedRollingMetrics();
     }
 
@@ -1074,8 +1079,9 @@ public final class MiningStats
     {
         METRIC_TICK_COUNTS.clear();
         metricTickIndex = 0L;
-        lastMetricUpdateTick = 0L;
         lastBpsUpdateTick = 0L;
+        lastBphUpdateTick = 0L;
+        sessionActiveTicks = 0L;
         currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
         rollingBlocksPerSecond = 0D;
@@ -1186,6 +1192,21 @@ public final class MiningStats
         }
 
         return Math.min(SessionData.MAX_BLOCKS_PER_HOUR, Math.max(0D, validBlocks * (double) BPH_WINDOW_TICKS / ticksUsed));
+    }
+
+    private static double calculateSessionBph()
+    {
+        if (sessionActiveTicks <= 0L)
+        {
+            return 0D;
+        }
+        if (sessionActiveTicks < BPH_WINDOW_TICKS)
+        {
+            // Under 1 hour: project current session pace to a full hour (per D-01)
+            return currentSession.totalBlocks * (double) BPH_WINDOW_TICKS / sessionActiveTicks;
+        }
+        // Over 1 hour: actual rolling 60-minute count from deque (per D-04)
+        return calculateRollingBph();
     }
 
     private static void updateCurrentSessionPeakFromRollingBph()
