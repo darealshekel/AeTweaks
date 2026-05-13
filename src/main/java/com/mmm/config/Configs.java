@@ -38,6 +38,15 @@ public class Configs implements IConfigHandler
 
     public static class Generic
     {
+        public static final String DEFAULT_HUD_TITLE_HEX_COLOR = "#FFE00000";
+        public static final String DEFAULT_HUD_TEXT_HEX_COLOR = "#FFF6F3EF";
+        public static final String DEFAULT_HUD_NUMBER_HEX_COLOR = "#FFFFFFFF";
+        public static final String DEFAULT_HUD_INACTIVE_HEX_COLOR = "#FF949494";
+        public static final String DEFAULT_BLOCK_ESP_HEX_COLOR = "#FF55FF55";
+        public static final String DEFAULT_GRAPH_LINE_HEX_COLOR = "#FFE00000";
+        public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
+        public static final String DEFAULT_GRAPH_GRID_HEX_COLOR = "#FFC8C8C8";
+
         public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable MMM website sync.");
         public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
@@ -56,20 +65,20 @@ public class Configs implements IConfigHandler
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
-        public static final ConfigColor HUD_TITLE_HEX_COLOR = new ConfigColor("hudTitleHexColor", "#E00000", "Title color used by the MMM HUD.");
-        public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", "#F6F3EF", "Label/text color used by the MMM HUD.");
-        public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", "#FFFFFF", "Number color used by MMM HUD and UI numeric values.");
-        public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", "#949494", "Inactive/paused text color used by the MMM HUD.");
+        public static final ConfigColor HUD_TITLE_HEX_COLOR = new ConfigColor("hudTitleHexColor", DEFAULT_HUD_TITLE_HEX_COLOR, "Title color used by the MMM HUD.");
+        public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", DEFAULT_HUD_TEXT_HEX_COLOR, "Label/text color used by the MMM HUD.");
+        public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
+        public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "BPS Smoothing");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
-        public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", "#55FF55", "Block ESP custom color. Used when the color mode is Single Color.");
+        public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
         public static final ConfigInteger BLOCK_ESP_OPACITY = new ConfigInteger("blockEspOpacity", 35, 0, 100, "Block ESP opacity percentage.");
         public static final ConfigDouble BLOCK_ESP_RAINBOW_SPEED = new ConfigDouble("blockEspRainbowSpeed", 1.0D, 0.1D, 10.0D, "Block ESP rainbow animation speed multiplier.");
-        public static final ConfigColor GRAPH_LINE_HEX_COLOR = new ConfigColor("graphLineHexColor", "#E00000", "Speed graph line color.");
-        public static final ConfigColor GRAPH_FILL_HEX_COLOR = new ConfigColor("graphFillHexColor", "#E00000", "Speed graph fill color.");
+        public static final ConfigColor GRAPH_LINE_HEX_COLOR = new ConfigColor("graphLineHexColor", DEFAULT_GRAPH_LINE_HEX_COLOR, "Speed graph line color.");
+        public static final ConfigColor GRAPH_FILL_HEX_COLOR = new ConfigColor("graphFillHexColor", DEFAULT_GRAPH_FILL_HEX_COLOR, "Speed graph fill color.");
         public static final ConfigInteger GRAPH_FILL_OPACITY = new ConfigInteger("graphFillOpacity", 42, 0, 100, "Speed graph fill opacity percentage.");
-        public static final ConfigColor GRAPH_GRID_HEX_COLOR = new ConfigColor("graphGridHexColor", "#FFC8C8C8", "Speed graph grid line color.");
+        public static final ConfigColor GRAPH_GRID_HEX_COLOR = new ConfigColor("graphGridHexColor", DEFAULT_GRAPH_GRID_HEX_COLOR, "Speed graph grid line color.");
         public static final ConfigInteger GRAPH_GRID_OPACITY = new ConfigInteger("graphGridOpacity", 27, 0, 100, "Speed graph grid line opacity percentage.");
         public static final ConfigInteger GRAPH_BG_OPACITY = new ConfigInteger("graphBgOpacity", 75, 0, 100, "Speed graph background opacity percentage.");
         public static final ConfigInteger GRAPH_SCALE_STEP = new ConfigInteger("graphScaleStep", 100, 50, 1000, "Speed graph Y-axis grid interval (blocks/hr).");
@@ -273,14 +282,14 @@ public class Configs implements IConfigHandler
         }
         Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
-        Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), "#E00000"));
-        Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), "#F6F3EF"));
-        Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), "#FFFFFF"));
-        Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494"));
+        Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TITLE_HEX_COLOR));
+        Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
+        Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_NUMBER_HEX_COLOR));
+        Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
-        Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"));
-        Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"));
-        Generic.GRAPH_GRID_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#FFC8C8C8"));
+        Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR));
+        Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_FILL_HEX_COLOR));
+        Generic.GRAPH_GRID_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_GRID_HEX_COLOR));
         Generic.GRAPH_FILL_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_FILL_OPACITY.getIntegerValue())));
         Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
@@ -418,7 +427,7 @@ public class Configs implements IConfigHandler
             return "#" + normalized.toUpperCase();
         }
 
-        return "#55FF55";
+        return Generic.DEFAULT_BLOCK_ESP_HEX_COLOR;
     }
 
     public static String normalizeHexColor(String value, String fallback)
@@ -448,27 +457,27 @@ public class Configs implements IConfigHandler
 
     public static int getHudNumberColor()
     {
-        return parseOpaqueHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), "#FFFFFF");
+        return parseOpaqueHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_NUMBER_HEX_COLOR);
     }
 
     public static int getHudTitleColor()
     {
-        return parseOpaqueHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), "#E00000");
+        return parseOpaqueHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TITLE_HEX_COLOR);
     }
 
     public static int getHudTextColor()
     {
-        return parseOpaqueHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), "#F6F3EF");
+        return parseOpaqueHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR);
     }
 
     public static int getHudInactiveColor()
     {
-        return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494");
+        return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR);
     }
 
-    public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"); }
-    public static int getGraphFillColor()  { return parseOpaqueHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"); }
-    public static int getGraphGridColor()  { return parseOpaqueHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#FFC8C8C8"); }
+    public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR); }
+    public static int getGraphFillColor()  { return parseOpaqueHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_FILL_HEX_COLOR); }
+    public static int getGraphGridColor()  { return parseOpaqueHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_GRID_HEX_COLOR); }
     public static float getGraphFillOpacity() { return Generic.GRAPH_FILL_OPACITY.getIntegerValue() / 100.0F; }
     public static float getGraphBgOpacity() { return Generic.GRAPH_BG_OPACITY.getIntegerValue() / 100.0F; }
     public static float getGraphGridOpacity() { return Generic.GRAPH_GRID_OPACITY.getIntegerValue() / 100.0F; }

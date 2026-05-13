@@ -50,19 +50,19 @@ public final class Callbacks
             Configs.saveToFile();
         });
         Configs.Generic.HUD_TITLE_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_HUD_TITLE_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.HUD_TEXT_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#F6F3EF"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.HUD_NUMBER_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#FFFFFF"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_HUD_NUMBER_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.HUD_INACTIVE_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#949494"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.BPS_SMOOTHING.setValueChangeCallback(config -> {
@@ -74,15 +74,15 @@ public final class Callbacks
         Configs.Generic.BLOCK_ESP_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.BLOCK_ESP_RAINBOW_SPEED.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.GRAPH_LINE_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_GRAPH_LINE_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.GRAPH_FILL_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_GRAPH_FILL_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.GRAPH_GRID_HEX_COLOR.setValueChangeCallback(config -> {
-            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_GRAPH_GRID_HEX_COLOR));
             Configs.saveToFile();
         });
         Configs.Generic.GRAPH_FILL_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
