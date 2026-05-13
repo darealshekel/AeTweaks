@@ -988,19 +988,6 @@ public final class MiningStats
         {
             rollingBlocksPerHour = calculateSessionBph();
             updateCurrentSessionPeakFromRollingBph();
-
-            if (MmmDebugLogger.isEnabled())
-            {
-                int dbgTicks = METRIC_TICK_COUNTS.size();
-                int dbgBlocks = 0;
-                for (TickBlockCount t : METRIC_TICK_COUNTS)
-                {
-                    dbgBlocks += Math.max(0, t.bphBlocks());
-                }
-                MMM.LOGGER.info(
-                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
-                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
-            }
             lastBphUpdateTick = metricTickIndex;
         }
 
