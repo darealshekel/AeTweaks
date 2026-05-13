@@ -406,7 +406,8 @@ public final class CloudSyncManager
     private static boolean isSyncCadenceDue(long now)
     {
         long interval = getSyncIntervalMs();
-        return lastLiveBlockSyncMs <= 0L || now - lastLiveBlockSyncMs >= interval;
+        long lastSyncMs = Math.max(lastLiveBlockSyncMs, Configs.websiteLastSuccessfulSyncMs);
+        return lastSyncMs <= 0L || now - lastSyncMs >= interval;
     }
 
     private static void queueCurrentLivePayloadIfDue(long now)
