@@ -25,6 +25,12 @@ public final class MiningSpeedTracker
 
     public static void tick(MinecraftClient client)
     {
+        if (MiningStats.isSessionActive() == false)
+        {
+            resetSession();
+            return;
+        }
+
         if (client.interactionManager == null || client.world == null || client.player == null)
         {
             resetBlock();
@@ -84,7 +90,7 @@ public final class MiningSpeedTracker
         lastBlockPos = null;
     }
 
-    private static void resetSession()
+    public static void resetSession()
     {
         resetBlock();
         hasSessionData = false;

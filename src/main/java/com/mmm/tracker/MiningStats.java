@@ -51,7 +51,6 @@ public final class MiningStats
     private static final int BPH_WINDOW_TICKS = 72_000;
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
     private static final int BPS_WINDOW_TICKS = 100;
-    private static final int IDLE_METRIC_RESET_TICKS = 1200;
     private static final ZoneId DAILY_RESET_ZONE = ZoneId.of("UTC");
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
@@ -76,7 +75,6 @@ public final class MiningStats
     private static long sessionActiveTicks;
     private static int currentTickBpsBlocks;
     private static int currentTickBphBlocks;
-    private static int idleMetricTicks;
     private static double rollingBlocksPerSecond;
     private static double rollingBlocksPerHour;
     private static double displayedBlocksPerSecond;
@@ -97,6 +95,7 @@ public final class MiningStats
         sessionActive = false;
         resetSession();
         resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         touchCurrentWorldStats(System.currentTimeMillis());
 
         resetDailyProgressIfNeeded();
@@ -137,6 +136,8 @@ public final class MiningStats
         }
         sessionActive = false;
         resetSession();
+        resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         Configs.saveToFile();
         GoalNotificationManager.clear();
         return finished;
@@ -266,6 +267,8 @@ public final class MiningStats
     public static void startNewSession()
     {
         resetSession();
+        resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         sessionActive = true;
         sessionStartTotalMined = getCurrentSourceTotalMined();
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
@@ -366,21 +369,41 @@ public final class MiningStats
 
     public static int getEstimatedBlocksPerHour()
     {
+        if (sessionActive == false)
+        {
+            return 0;
+        }
+
         return SessionData.clampBlocksPerHour(Math.round(rollingBlocksPerHour));
     }
 
     public static double getEstimatedBlocksPerSecond()
     {
+        if (sessionActive == false)
+        {
+            return 0D;
+        }
+
         return Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
     }
 
     public static int getDisplayedBlocksPerHour()
     {
+        if (sessionActive == false)
+        {
+            return 0;
+        }
+
         return SessionData.clampBlocksPerHour(Math.round(displayedBlocksPerHour));
     }
 
     public static double getDisplayedBlocksPerSecond()
     {
+        if (sessionActive == false)
+        {
+            return 0D;
+        }
+
         return Math.max(0D, Math.min(20D, displayedBlocksPerSecond));
     }
 
@@ -1024,11 +1047,10 @@ public final class MiningStats
 
     private static void recordSuccessfulHarvestForRollingMetrics()
     {
-        if (!sessionPaused)
+        if (sessionActive && !sessionPaused)
         {
             currentTickBpsBlocks++;
             currentTickBphBlocks++;
-            idleMetricTicks = 0;
         }
     }
 
@@ -1040,19 +1062,15 @@ public final class MiningStats
             return;
         }
 
-        if (sessionPaused)
+        if (sessionActive == false)
         {
+            resetRollingMetrics();
             return;
         }
 
-        if (!sessionActive)
+        if (sessionPaused)
         {
-            idleMetricTicks++;
-            if (idleMetricTicks >= IDLE_METRIC_RESET_TICKS)
-            {
-                resetRollingMetrics();
-                return;
-            }
+            return;
         }
 
         Configs.BpsSmoothing mode = Configs.getBpsSmoothingMode();
@@ -1082,10 +1100,7 @@ public final class MiningStats
             lastBphUpdateTick = metricTickIndex;
         }
 
-        if (sessionActive)
-        {
-            sessionActiveTicks++;
-        }
+        sessionActiveTicks++;
 
         updateDisplayedRollingMetrics();
     }
@@ -1099,7 +1114,6 @@ public final class MiningStats
         sessionActiveTicks = 0L;
         currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
-        idleMetricTicks = 0;
         rollingBlocksPerSecond = 0D;
         rollingBlocksPerHour = 0D;
         displayedBlocksPerSecond = 0D;
