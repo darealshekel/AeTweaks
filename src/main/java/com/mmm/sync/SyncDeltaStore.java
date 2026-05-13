@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.Reference;
+import com.mmm.util.MmmDebugLogger;
 import fi.dy.masa.malilib.util.FileUtils;
 import java.io.File;
 import java.io.FileReader;
@@ -23,6 +24,7 @@ final class SyncDeltaStore
     private static final Map<String, String> SECTION_FINGERPRINTS = new LinkedHashMap<>();
     private static final Map<String, Map<String, Long>> CURRENT_WORLD_BREAKDOWNS = new LinkedHashMap<>();
     private static final Map<String, JsonObject> AETERNUM_LEADERBOARDS = new LinkedHashMap<>();
+    private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static boolean loaded;
 
     private SyncDeltaStore()
@@ -408,8 +410,14 @@ final class SyncDeltaStore
                     counts.put(blockId, count);
                 }
             }
-            catch (Exception ignored)
+            catch (Exception e)
             {
+                MmmDebugLogger.debug(
+                        "sync-delta-item-count-" + blockId,
+                        JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse sync delta item count blockId={}: {}",
+                        blockId,
+                        e.getMessage());
             }
         }
         return counts;
@@ -443,8 +451,14 @@ final class SyncDeltaStore
             {
                 return object.get(key).getAsString().trim();
             }
-            catch (Exception ignored)
+            catch (Exception e)
             {
+                MmmDebugLogger.debug(
+                        "sync-delta-string-" + key,
+                        JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse sync delta string field '{}': {}",
+                        key,
+                        e.getMessage());
             }
         }
         return "";
@@ -458,8 +472,14 @@ final class SyncDeltaStore
             {
                 return object.get(key).getAsInt();
             }
-            catch (Exception ignored)
+            catch (Exception e)
             {
+                MmmDebugLogger.debug(
+                        "sync-delta-int-" + key,
+                        JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse sync delta int field '{}': {}",
+                        key,
+                        e.getMessage());
             }
         }
         return fallback;
@@ -536,8 +556,14 @@ final class SyncDeltaStore
                 {
                     counts.put(entry.getKey(), Math.max(0L, entry.getValue().getAsLong()));
                 }
-                catch (Exception ignored)
+                catch (Exception e)
                 {
+                    MmmDebugLogger.debug(
+                            "sync-delta-counts-object-" + entry.getKey(),
+                            JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                            "[MMM_SYNC] failed to parse sync delta counts field '{}': {}",
+                            entry.getKey(),
+                            e.getMessage());
                 }
             }
         }

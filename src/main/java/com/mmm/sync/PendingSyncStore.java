@@ -2,6 +2,7 @@ package com.mmm.sync;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.mmm.MMM;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -73,8 +74,9 @@ final class PendingSyncStore
         {
             Files.move(tempPath, this.path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("[MMM_SYNC] atomic queue save move failed for {}; retrying non-atomic move: {}", this.path, e.getMessage());
             Files.move(tempPath, this.path, StandardCopyOption.REPLACE_EXISTING);
         }
     }

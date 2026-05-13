@@ -41,6 +41,12 @@ public final class MiningStats
     private static final long AUTO_MINING_GAP_MS = 2_000L;
     private static final long AUTO_PAUSE_IDLE_MS = 90_000L;
     private static final long FASTEST_100K_TARGET = 100_000L;
+    private static final long TOTAL_MINED_PERSIST_INTERVAL_MS = 5_000L;
+    private static final long BLOCK_MINED_DEBUG_LOG_INTERVAL_MS = 5_000L;
+    private static final long SESSION_DEBUG_LOG_INTERVAL_MS = 30_000L;
+    private static final long SCOREBOARD_BOOTSTRAP_SKIPPED_LOG_INTERVAL_MS = 10_000L;
+    private static final long SCOREBOARD_BOOTSTRAP_APPLIED_LOG_INTERVAL_MS = 5_000L;
+    private static final long SOURCE_UPDATE_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final int TICKS_PER_SECOND = 20;
     private static final int BPH_WINDOW_TICKS = 72_000;
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
@@ -210,7 +216,7 @@ public final class MiningStats
 
         CloudSyncManager.onBlockMined(now);
 
-        if (now - lastPersistedTotalMinedMs >= 5_000L)
+        if (now - lastPersistedTotalMinedMs >= TOTAL_MINED_PERSIST_INTERVAL_MS)
         {
             Configs.saveToFile();
             lastPersistedTotalMinedMs = now;
@@ -222,7 +228,7 @@ public final class MiningStats
                 beforeSourceTotal,
                 afterSourceTotal,
                 Math.max(0L, afterSourceTotal - beforeSourceTotal));
-        if (MmmDebugLogger.shouldLog("miningstats.block-mined", 5_000L))
+        if (MmmDebugLogger.shouldLog("miningstats.block-mined", BLOCK_MINED_DEBUG_LOG_INTERVAL_MS))
         {
             WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
             MMM.LOGGER.info(
@@ -266,7 +272,7 @@ public final class MiningStats
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MmmDebugLogger.info(
                 "miningstats-session-start",
-                30_000L,
+                SESSION_DEBUG_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] session-start worldKey={} worldName={} sessionStartSourceTotal={} lifetime={}",
                 world.id(),
                 world.displayName(),
@@ -484,7 +490,7 @@ public final class MiningStats
 
         debugAttribution("authoritative-update", previousSourceTotal, worldStats.totalBlocks, delta);
 
-        if (now - lastPersistedTotalMinedMs >= 5_000L)
+        if (now - lastPersistedTotalMinedMs >= TOTAL_MINED_PERSIST_INTERVAL_MS)
         {
             Configs.saveToFile();
             lastPersistedTotalMinedMs = now;
@@ -501,7 +507,7 @@ public final class MiningStats
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         if (sourceMatchesCurrentWorld(worldInfo, scoreboardSourceName) == false)
         {
-            if (MmmDebugLogger.shouldLog("miningstats.scoreboard-bootstrap-skipped", 10_000L))
+            if (MmmDebugLogger.shouldLog("miningstats.scoreboard-bootstrap-skipped", SCOREBOARD_BOOTSTRAP_SKIPPED_LOG_INTERVAL_MS))
             {
                 MMM.LOGGER.info(
                         "[MMM_DEBUG] scoreboard-bootstrap-skipped worldKey={} worldName={} scoreboardSourceName={}",
@@ -532,7 +538,7 @@ public final class MiningStats
             sessionStartTotalMined += delta;
         }
 
-        if (MmmDebugLogger.shouldLog("miningstats.scoreboard-bootstrap-applied", 5_000L))
+        if (MmmDebugLogger.shouldLog("miningstats.scoreboard-bootstrap-applied", SCOREBOARD_BOOTSTRAP_APPLIED_LOG_INTERVAL_MS))
         {
             String sourceKey = ScoreboardSourceResolver.sourceKey(
                     worldInfo.displayName(),
@@ -982,19 +988,6 @@ public final class MiningStats
         {
             rollingBlocksPerHour = calculateSessionBph();
             updateCurrentSessionPeakFromRollingBph();
-
-            if (MmmDebugLogger.isEnabled())
-            {
-                int dbgTicks = METRIC_TICK_COUNTS.size();
-                int dbgBlocks = 0;
-                for (TickBlockCount t : METRIC_TICK_COUNTS)
-                {
-                    dbgBlocks += Math.max(0, t.bphBlocks());
-                }
-                MMM.LOGGER.info(
-                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
-                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
-            }
             lastBphUpdateTick = metricTickIndex;
         }
 
@@ -1220,7 +1213,7 @@ public final class MiningStats
         CloudSyncManager.syncHeartbeat();
         MmmDebugLogger.info(
                 "miningstats-auto-pause",
-                30_000L,
+                SESSION_DEBUG_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] session-auto-paused idleMs={}",
                 now - lastValidBlockMineMs);
     }
@@ -1237,7 +1230,7 @@ public final class MiningStats
         CloudSyncManager.syncHeartbeat();
         MmmDebugLogger.info(
                 "miningstats-auto-resume",
-                30_000L,
+                SESSION_DEBUG_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] session-auto-resumed");
     }
 
@@ -1275,7 +1268,7 @@ public final class MiningStats
 
     private static void debugAttribution(String reason, long beforeSourceTotal, long afterSourceTotal, long delta)
     {
-        if (MmmDebugLogger.shouldLog("miningstats.source-update." + reason, 5_000L) == false)
+        if (MmmDebugLogger.shouldLog("miningstats.source-update." + reason, SOURCE_UPDATE_DEBUG_LOG_INTERVAL_MS) == false)
         {
             return;
         }

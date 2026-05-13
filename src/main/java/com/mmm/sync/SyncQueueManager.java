@@ -18,6 +18,9 @@ public final class SyncQueueManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final long PERIODIC_FLUSH_INTERVAL_MS = 5_000L;
+    private static final long DISABLED_SYNC_LOG_INTERVAL_MS = 10_000L;
+    private static final long SEND_SUCCESS_LOG_INTERVAL_MS = 10_000L;
+    private static final long ERROR_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final String LINK_ENDPOINT = "https://www.mmmaniacs.com/api/auth/link-code/claim";
 
     private static PendingSyncQueue queue;
@@ -149,7 +152,7 @@ public final class SyncQueueManager
 
             if (isSyncEnabledFor(item.type) == false)
             {
-                MmmDebugLogger.info("syncqueue-send-disabled-" + item.type.name(), 10_000L,
+                MmmDebugLogger.info("syncqueue-send-disabled-" + item.type.name(), DISABLED_SYNC_LOG_INTERVAL_MS,
                         "{} send-skipped-disabled id={} type={}",
                         LOG_PREFIX,
                         item.id,
@@ -211,7 +214,7 @@ public final class SyncQueueManager
 
             MmmDebugLogger.info(
                     "syncqueue-request-" + item.type.name(),
-                    10_000L,
+                    SEND_SUCCESS_LOG_INTERVAL_MS,
                     "{} request-sent id={} type={} endpoint={} payloadSummary={}",
                     LOG_PREFIX,
                     item.id,
@@ -225,7 +228,7 @@ public final class SyncQueueManager
             {
                 MmmDebugLogger.info(
                         "syncqueue-response-" + item.type.name(),
-                        10_000L,
+                        SEND_SUCCESS_LOG_INTERVAL_MS,
                         "{} response-received id={} type={} status={} body={}",
                         LOG_PREFIX,
                         item.id,
@@ -302,7 +305,7 @@ public final class SyncQueueManager
 
     private static void logEnqueueSkippedDisabled(SyncItemType type)
     {
-        MmmDebugLogger.info("syncqueue-enqueue-disabled-" + type.name(), 10_000L,
+        MmmDebugLogger.info("syncqueue-enqueue-disabled-" + type.name(), DISABLED_SYNC_LOG_INTERVAL_MS,
                 "{} enqueue-skipped-disabled type={}",
                 LOG_PREFIX,
                 type);
@@ -347,8 +350,15 @@ public final class SyncQueueManager
                 return object.get("error").getAsString();
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "syncqueue-error-response-parse",
+                    ERROR_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "{} failed to parse sync error response body='{}': {}",
+                    LOG_PREFIX,
+                    body,
+                    e.getMessage());
         }
 
         return fallback;

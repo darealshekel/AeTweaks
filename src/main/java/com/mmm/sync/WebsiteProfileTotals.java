@@ -3,6 +3,7 @@ package com.mmm.sync;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mmm.MMM;
 import com.mmm.config.Configs;
 import com.mmm.util.MmmDebugLogger;
 import java.net.URI;
@@ -19,6 +20,8 @@ public final class WebsiteProfileTotals
 {
     private static final String PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=%s&refreshCache=1&liveTs=%d";
     private static final long MIN_REFRESH_INTERVAL_MS = 30_000L;
+    private static final long REFRESH_LOG_INTERVAL_MS = 30_000L;
+    private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8L))
             .build();
@@ -67,7 +70,7 @@ public final class WebsiteProfileTotals
                         {
                             MmmDebugLogger.info(
                                     "website-profile-total-refresh-failed",
-                                    30_000L,
+                                    REFRESH_LOG_INTERVAL_MS,
                                     "[MMM_SYNC] profile-total-refresh-failed username={} status={} error={}",
                                     username,
                                     response == null ? -1 : response.statusCode(),
@@ -86,7 +89,7 @@ public final class WebsiteProfileTotals
                         {
                             MmmDebugLogger.info(
                                     "website-profile-total-refresh-stale",
-                                    30_000L,
+                                    REFRESH_LOG_INTERVAL_MS,
                                     "[MMM_SYNC] profile-total-refresh-stale username={} blocksNum={} currentGlobalTotal={}",
                                     username,
                                     blocksNum,
@@ -102,7 +105,7 @@ public final class WebsiteProfileTotals
                         }
                         MmmDebugLogger.info(
                                 "website-profile-total-refresh-ok",
-                                30_000L,
+                                REFRESH_LOG_INTERVAL_MS,
                                 "[MMM_SYNC] profile-total-refresh-ok username={} blocksNum={}",
                                 username,
                                 blocksNum);
@@ -121,8 +124,9 @@ public final class WebsiteProfileTotals
             JsonObject object = JsonParser.parseString(body).getAsJsonObject();
             return getLong(object, "blocksNum", getLong(object, "blocksMined", 0L));
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("[MMM_SYNC] failed to parse profile total response: {}", e.getMessage());
             return 0L;
         }
     }
@@ -139,8 +143,14 @@ public final class WebsiteProfileTotals
             JsonElement element = object.get(key);
             return element != null && element.isJsonPrimitive() ? element.getAsLong() : fallback;
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "website-profile-total-" + key,
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_SYNC] failed to parse profile total field '{}': {}",
+                    key,
+                    e.getMessage());
             return fallback;
         }
     }
@@ -163,8 +173,13 @@ public final class WebsiteProfileTotals
             String username = client.getSession().getUsername();
             return username == null ? "" : username.trim();
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "website-profile-username",
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_SYNC] failed to resolve profile username: {}",
+                    e.getMessage());
             return "";
         }
     }

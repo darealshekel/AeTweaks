@@ -120,8 +120,9 @@ public final class WorldSessionContext
                 }
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("[MMM] Failed to resolve singleplayer world folder for '{}': {}", levelName, e.getMessage());
         }
 
         return sanitise(levelName);

@@ -52,4 +52,12 @@ public final class MmmDebugLogger
             MMM.LOGGER.info(message, args);
         }
     }
+
+    public static void debug(String key, long intervalMs, String message, Object... args)
+    {
+        if (shouldLog(key, intervalMs))
+        {
+            MMM.LOGGER.debug(message, args);
+        }
+    }
 }

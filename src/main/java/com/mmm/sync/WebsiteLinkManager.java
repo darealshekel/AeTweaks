@@ -2,7 +2,9 @@ package com.mmm.sync;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mmm.MMM;
 import com.mmm.config.Configs;
+import com.mmm.util.MmmDebugLogger;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -11,6 +13,7 @@ import net.minecraft.client.MinecraftClient;
 
 public final class WebsiteLinkManager
 {
+    private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final AtomicReference<LinkState> STATE = new AtomicReference<>(LinkState.idle());
     private static final DateTimeFormatter RETRY_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
@@ -129,8 +132,9 @@ public final class WebsiteLinkManager
                 return object.get("username").getAsString();
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("[MMM_SYNC] failed to parse website link response username: {}", e.getMessage());
         }
 
         return "";
@@ -146,8 +150,13 @@ public final class WebsiteLinkManager
                 return username;
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "website-link-username",
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_SYNC] failed to resolve website link username: {}",
+                    e.getMessage());
         }
 
         return client.player == null ? "Player" : client.player.getName().getString();

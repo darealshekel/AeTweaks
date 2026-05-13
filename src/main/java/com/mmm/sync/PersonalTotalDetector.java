@@ -20,6 +20,8 @@ final class PersonalTotalDetector
 {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(?i)(?<![A-Za-z0-9_])(\\d[\\d,._ ]*(?:\\.\\d+)?)\\s*([kmbt])?(?![A-Za-z0-9_])");
     private static final Pattern RANK_PREFIX_PATTERN = Pattern.compile("(?i)^\\s*(?:#|\\[)?(\\d{1,3})(?:\\]|[.):-])\\s+([A-Za-z0-9_]{3,16})\\b");
+    private static final long PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
+    private static final long CANDIDATE_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "my", "personal", "self", "player");
     private static final List<String> DIG_MARKERS = List.of("dig", "dug");
 
@@ -187,8 +189,14 @@ final class PersonalTotalDetector
                     best = value;
                 }
             }
-            catch (NumberFormatException ignored)
+            catch (NumberFormatException e)
             {
+                MmmDebugLogger.debug(
+                        "personal-total-number-parse",
+                        PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse personal total number from '{}': {}",
+                        matcher.group(),
+                        e.getMessage());
             }
         }
 
@@ -358,7 +366,7 @@ final class PersonalTotalDetector
 
     private static void debugCandidate(String detector, String rendered, String objectiveTitle, long rawScore, long parsedValue, boolean accepted, String reason)
     {
-        if (MmmDebugLogger.shouldLog("personal-total-candidate", 5_000L) == false)
+        if (MmmDebugLogger.shouldLog("personal-total-candidate", CANDIDATE_DEBUG_LOG_INTERVAL_MS) == false)
         {
             return;
         }

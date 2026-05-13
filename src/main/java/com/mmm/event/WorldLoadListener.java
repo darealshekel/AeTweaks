@@ -19,6 +19,7 @@ import net.minecraft.registry.DynamicRegistryManager;
 
 public class WorldLoadListener implements IWorldLoadListener
 {
+    private static final long WORLD_SWITCH_LOG_INTERVAL_MS = 30_000L;
     private static SessionData pendingSummary;
     private static String pendingSummaryName = "Unknown";
 
@@ -77,7 +78,7 @@ public class WorldLoadListener implements IWorldLoadListener
         WorldSessionContext.WorldInfo info = WorldSessionContext.getCurrentWorldInfo();
         MmmDebugLogger.info(
                 "world-switch",
-                30_000L,
+                WORLD_SWITCH_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host={}",
                 previousWorldId,
                 nextWorldId,

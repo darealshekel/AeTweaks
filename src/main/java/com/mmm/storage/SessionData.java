@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import com.mmm.MMM;
 import com.mmm.util.BlockBreakdownCatalog;
 
 public class SessionData
@@ -108,8 +109,9 @@ public class SessionData
             }
             return session;
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("[MMM] Failed to parse session history line '{}': {}", line, e.getMessage());
             return null;
         }
     }
@@ -146,8 +148,9 @@ public class SessionData
                 {
                     breakdown.put(kv[0], Long.parseLong(kv[1]));
                 }
-                catch (NumberFormatException ignored)
+                catch (NumberFormatException e)
                 {
+                    MMM.LOGGER.warn("[MMM] Failed to parse session block breakdown entry '{}': {}", entry, e.getMessage());
                 }
             }
         }
@@ -183,8 +186,9 @@ public class SessionData
             {
                 buckets.add(Math.max(0, Integer.parseInt(entry)));
             }
-            catch (NumberFormatException ignored)
+            catch (NumberFormatException e)
             {
+                MMM.LOGGER.warn("[MMM] Failed to parse session rate bucket entry '{}': {}", entry, e.getMessage());
                 buckets.add(0);
             }
         }

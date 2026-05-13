@@ -14,6 +14,8 @@ public final class PlayerDigsParser
 {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(?<![A-Za-z0-9_])(\\d[\\d,._ ]*)(?![A-Za-z0-9_])");
     private static final Pattern RANK_PREFIX_PATTERN = Pattern.compile("(?i)^\\s*(?:#|\\[)?\\d{1,3}(?:\\]|[.):-])\\s+([A-Za-z0-9_]{3,16})\\b");
+    private static final long PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
+    private static final long LINE_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final List<String> PLAYER_MARKERS = List.of("your", "you", "player", "personal", "my", "me", "self");
     private static final List<String> GLOBAL_MARKERS = List.of("server", "global", "community", "overall", "everyone", "all players");
 
@@ -209,8 +211,14 @@ public final class PlayerDigsParser
                     best = parsed;
                 }
             }
-            catch (NumberFormatException ignored)
+            catch (NumberFormatException e)
             {
+                MmmDebugLogger.debug(
+                        "player-digs-number-parse",
+                        PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse player digs number from '{}': {}",
+                        matcher.group(1),
+                        e.getMessage());
             }
         }
 
@@ -291,7 +299,7 @@ public final class PlayerDigsParser
 
     private static void debugLine(String objectiveTitle, ScoreboardReader.ScoreboardLine line, boolean accepted, String reason)
     {
-        if (MmmDebugLogger.shouldLog("player-digs-line", 5_000L) == false)
+        if (MmmDebugLogger.shouldLog("player-digs-line", LINE_DEBUG_LOG_INTERVAL_MS) == false)
         {
             return;
         }

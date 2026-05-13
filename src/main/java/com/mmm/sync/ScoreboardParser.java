@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.mmm.util.MmmDebugLogger;
 import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
@@ -17,6 +18,7 @@ final class ScoreboardParser
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d[\\d,._ ]*(?:\\.\\d+)?)(?:\\s*([kKmMbBtT]))?");
     private static final Pattern USERNAME_PATTERN = Pattern.compile("(?i)(?:^|\\s|[#>\\[(])([A-Za-z0-9_]{3,16})(?:$|\\s|[\\])<:,.-])");
     private static final Pattern DECLARED_RANK_PATTERN = Pattern.compile("^(?:\\[)?#?(\\d{1,3})(?:\\]|[.):-])?\\s+");
+    private static final long PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "player", "personal", "my", "me", "self");
     private static final List<String> SERVER_TOTAL_MARKERS = List.of(
             "total",
@@ -350,8 +352,14 @@ final class ScoreboardParser
         {
             return Integer.parseInt(matcher.group(1));
         }
-        catch (NumberFormatException ignored)
+        catch (NumberFormatException e)
         {
+            MmmDebugLogger.debug(
+                    "scoreboard-rank-parse",
+                    PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_SYNC] failed to parse scoreboard rank from '{}': {}",
+                    cleaned,
+                    e.getMessage());
             return 0;
         }
     }
@@ -425,8 +433,14 @@ final class ScoreboardParser
                     best = parsed;
                 }
             }
-            catch (NumberFormatException ignored)
+            catch (NumberFormatException e)
             {
+                MmmDebugLogger.debug(
+                        "scoreboard-number-parse",
+                        PARSE_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_SYNC] failed to parse scoreboard number from '{}': {}",
+                        matcher.group(),
+                        e.getMessage());
             }
         }
 

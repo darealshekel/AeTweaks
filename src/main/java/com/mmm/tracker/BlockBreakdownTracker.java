@@ -14,6 +14,7 @@ import net.minecraft.stat.Stats;
 public final class BlockBreakdownTracker
 {
     private static final long REQUEST_DELAY_MS = 1_000L;
+    private static final long STATS_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static boolean statsRequestPending;
     private static long nextStatsRequestAtMs;
     private static String pendingWorldId = "";
@@ -53,7 +54,7 @@ public final class BlockBreakdownTracker
 
         MmmDebugLogger.info(
                 "requested-vanilla-mined-stats",
-                30_000L,
+                STATS_DEBUG_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] requested-vanilla-mined-stats worldId={}",
                 WorldSessionContext.getCurrentWorldId());
     }
@@ -91,7 +92,7 @@ public final class BlockBreakdownTracker
         long total = minedBlocks.values().stream().mapToLong(Long::longValue).sum();
         MmmDebugLogger.info(
                 "captured-vanilla-mined-stats",
-                30_000L,
+                STATS_DEBUG_LOG_INTERVAL_MS,
                 "[MMM_DEBUG] captured-vanilla-mined-stats worldId={} blockTypes={} total={}",
                 WorldSessionContext.getCurrentWorldId(),
                 minedBlocks.size(),

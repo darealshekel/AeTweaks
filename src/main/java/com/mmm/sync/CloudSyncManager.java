@@ -35,6 +35,10 @@ public final class CloudSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
+    private static final long SYNC_CHECK_LOG_INTERVAL_MS = 5_000L;
+    private static final long WEBSITE_GLOBAL_TOTAL_STALE_LOG_INTERVAL_MS = 30_000L;
+    private static final long PAYLOAD_CREATED_LOG_INTERVAL_MS = 5_000L;
+    private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     // Minimum gap between light-only heartbeats when payload data has not changed.
     private static final long LIGHT_HEARTBEAT_INTERVAL_MS = 5 * 60_000L;
 
@@ -175,7 +179,7 @@ public final class CloudSyncManager
         boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
         boolean hasSessionToken = hasSessionToken(client);
 
-        if (MmmDebugLogger.shouldLog("cloud-sync-check", 5_000L))
+        if (MmmDebugLogger.shouldLog("cloud-sync-check", SYNC_CHECK_LOG_INTERVAL_MS))
         {
             MMM.LOGGER.info(
                     "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} playerUuid={} playerName={} sourceSlug={} sourceName={} totalMined={} sessionMined={} targetUrl={}",
@@ -500,7 +504,7 @@ public final class CloudSyncManager
                 {
                     MmmDebugLogger.info(
                             "website-global-total-stale",
-                            30_000L,
+                            WEBSITE_GLOBAL_TOTAL_STALE_LOG_INTERVAL_MS,
                             "[MMM_SYNC] ignored lower website global total candidate={} current={}",
                             globalTotal,
                             currentGlobalTotal);
@@ -512,8 +516,9 @@ public final class CloudSyncManager
                 Configs.saveToFile();
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MMM.LOGGER.warn("{} failed to parse sync response: {}", LOG_PREFIX, e.getMessage());
         }
     }
 
@@ -551,8 +556,15 @@ public final class CloudSyncManager
             JsonElement element = object.get(key);
             return element != null && element.isJsonPrimitive() ? element.getAsLong() : fallback;
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "cloud-sync-json-long-" + key,
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "{} failed to parse sync response field '{}': {}",
+                    LOG_PREFIX,
+                    key,
+                    e.getMessage());
             return fallback;
         }
     }
@@ -1037,8 +1049,14 @@ public final class CloudSyncManager
                 return username;
             }
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "cloud-sync-username",
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "{} failed to resolve session username: {}",
+                    LOG_PREFIX,
+                    e.getMessage());
         }
 
         if (client.player != null)
@@ -1061,8 +1079,14 @@ public final class CloudSyncManager
             String token = client.getSession().getAccessToken();
             return token != null && token.isBlank() == false;
         }
-        catch (Exception ignored)
+        catch (Exception e)
         {
+            MmmDebugLogger.debug(
+                    "cloud-sync-session-token",
+                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
+                    "{} failed to inspect session token: {}",
+                    LOG_PREFIX,
+                    e.getMessage());
             return false;
         }
     }
@@ -1211,7 +1235,7 @@ public final class CloudSyncManager
         lastPayloadSourceKey = sourceKey;
         lastPayloadSourceName = sourceName;
 
-        if (MmmDebugLogger.shouldLog("cloud-sync-payload-created", 5_000L) == false)
+        if (MmmDebugLogger.shouldLog("cloud-sync-payload-created", PAYLOAD_CREATED_LOG_INTERVAL_MS) == false)
         {
             return;
         }
