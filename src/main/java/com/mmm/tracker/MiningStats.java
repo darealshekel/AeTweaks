@@ -747,6 +747,73 @@ public final class MiningStats
         return currentSession;
     }
 
+    public static SessionData simulateDevFinishedSession()
+    {
+        long now = System.currentTimeMillis();
+        int durationMinutes = 195;
+        long startTimeMs = now - durationMinutes * ONE_MINUTE_MS - 30_000L;
+        SessionData session = new SessionData(startTimeMs);
+
+        long totalBlocks = 0L;
+        for (int minute = 0; minute < durationMinutes; minute++)
+        {
+            int warmup = Math.min(90, minute * 7);
+            int cooldown = Math.max(0, minute - 168) * 9;
+            int wave = (int) Math.round(Math.sin(minute / 8.0D) * 95.0D + Math.sin(minute / 21.0D) * 70.0D);
+            int bucketBlocks = Math.max(120, 650 + warmup - cooldown + wave + (minute % 11) * 11);
+            session.recordMinedAmount(minute * ONE_MINUTE_MS, bucketBlocks);
+            totalBlocks += bucketBlocks;
+        }
+
+        session.totalBlocks = totalBlocks;
+        session.endTimeMs = startTimeMs + durationMinutes * ONE_MINUTE_MS;
+        session.bestStreakSeconds = 27L * 60L;
+        session.blockBreakdown = buildDevSessionBreakdown(totalBlocks);
+
+        resetDailyProgressIfNeeded();
+        resetPeriodStatsIfNeeded(now);
+
+        Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined) + totalBlocks;
+        Configs.dailyProgress = Math.max(0L, Configs.dailyProgress) + totalBlocks;
+        recordPeriodBlocksMined(totalBlocks, now);
+
+        ProjectEntry activeProject = Configs.getActiveProject();
+        if (activeProject != null)
+        {
+            activeProject.progress = Math.max(0L, activeProject.progress) + totalBlocks;
+        }
+
+        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        worldStats.totalBlocks = Math.max(0L, worldStats.totalBlocks) + totalBlocks;
+        worldStats.lastSeenAt = now;
+        if (worldStats.blockBreakdown == null)
+        {
+            worldStats.blockBreakdown = new LinkedHashMap<>();
+        }
+        for (Map.Entry<String, Long> entry : session.blockBreakdown.entrySet())
+        {
+            worldStats.blockBreakdown.merge(entry.getKey(), entry.getValue(), Long::sum);
+        }
+        worldStats.blockBreakdown = Configs.sanitizeBlockBreakdown(worldStats.blockBreakdown);
+        worldStats.blockBreakdownSource = Configs.BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED;
+        worldStats.blockBreakdownUpdatedAtMs = now;
+
+        if (session.totalBlocks >= FASTEST_100K_TARGET)
+        {
+            long fastestDurationMs = Math.max(1L, (FASTEST_100K_TARGET * session.getDurationMs()) / session.totalBlocks);
+            if (Configs.fastest100kMs <= 0L || fastestDurationMs < Configs.fastest100kMs)
+            {
+                Configs.fastest100kMs = fastestDurationMs;
+                Configs.fastest100kStartedAtMs = session.startTimeMs;
+                Configs.fastest100kFinishedAtMs = session.startTimeMs + fastestDurationMs;
+            }
+        }
+
+        SessionHistory.save(session);
+        Configs.saveToFile();
+        return session;
+    }
+
     public static void setDailyProgress(long value)
     {
         Configs.dailyProgress = Math.max(0L, value);
@@ -783,6 +850,33 @@ public final class MiningStats
         return session.blockBreakdown.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, java.util.LinkedHashMap::new));
+    }
+
+    private static Map<String, Long> buildDevSessionBreakdown(long totalBlocks)
+    {
+        String[] ids = {
+                "minecraft:deepslate",
+                "minecraft:tuff",
+                "minecraft:stone",
+                "minecraft:gravel",
+                "minecraft:diorite",
+                "minecraft:andesite",
+                "minecraft:deepslate_redstone_ore",
+                "minecraft:deepslate_diamond_ore"
+        };
+        int[] weights = { 355, 210, 170, 95, 70, 62, 28, 10 };
+        Map<String, Long> breakdown = new LinkedHashMap<>();
+        long assigned = 0L;
+        for (int i = 0; i < ids.length; i++)
+        {
+            long amount = i == ids.length - 1 ? totalBlocks - assigned : (totalBlocks * weights[i]) / 1000L;
+            assigned += amount;
+            if (amount > 0L)
+            {
+                breakdown.put(ids[i], amount);
+            }
+        }
+        return breakdown;
     }
 
     private static void resetDailyProgressIfNeeded()

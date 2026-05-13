@@ -9,6 +9,8 @@ import java.util.Map;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.hud.HudMoveScreen;
+import com.mmm.hud.SessionHistoryScreen;
+import com.mmm.tracker.MiningStats;
 
 import fi.dy.masa.malilib.config.IConfigColor;
 import fi.dy.masa.malilib.config.IConfigDouble;
@@ -21,6 +23,7 @@ import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiColorEditorHSV;
+import fi.dy.masa.malilib.util.InfoUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -274,10 +277,16 @@ public class MmmSettingsScreen extends Screen
             case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
             case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
             case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case ACTION -> this.drawActionButton(context, controlX, controlY, CONTROL_WIDTH, FIELD_HEIGHT, "OPEN", mouseX, mouseY, () -> {
+            case ACTION -> this.drawActionButton(context, controlX, controlY, CONTROL_WIDTH, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
+                }
+                else if ("Generate Dev Run".equals(row.label()))
+                {
+                    MiningStats.simulateDevFinishedSession();
+                    InfoUtils.printActionbarMessage("Generated dev mining run");
+                    MinecraftClient.getInstance().setScreen(new SessionHistoryScreen(this.parent));
                 }
             });
         }
@@ -408,6 +417,11 @@ public class MmmSettingsScreen extends Screen
     {
         this.drawButtonShell(context, x, y, width, height, label, mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
+    }
+
+    private String actionButtonLabel(SettingRow row)
+    {
+        return "Generate Dev Run".equals(row.label()) ? "RUN" : "OPEN";
     }
 
     private void drawButtonShell(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, boolean subtle)
@@ -728,6 +742,9 @@ public class MmmSettingsScreen extends Screen
         this.sections.add(SettingsSection.performance(
                 new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
         ));
+        this.sections.add(SettingsSection.developer(
+                new SettingRow("Generate Dev Run", "Create and end a 3h15m test session.", null, ControlKind.ACTION)
+        ));
     }
 
     private enum SidebarItem
@@ -854,6 +871,11 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection about(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.ABOUT, "ABOUT", "Current mod version and existing MMM screens.", List.of(rows));
+        }
+
+        private static SettingsSection developer(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.ABOUT, "DEV TOOLS", "Generate local test data for MMM screens.", List.of(rows));
         }
 
         private SidebarItem sidebarItem()
