@@ -12,7 +12,6 @@ import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerInteractionManager;
 import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
@@ -62,12 +61,6 @@ public class ClientPlayerInteractionManagerMixin
             return;
         }
 
-        if (FeatureToggle.TWEAK_REQUIRE_VALID_MINING_TOOL.getBooleanValue()
-                && (client.player.canHarvest(state) == false || mmm$isHoldingEffectiveMiningTool(client.player, state) == false))
-        {
-            return;
-        }
-
         this.mmm$pendingBlock = block;
         this.mmm$pendingState = state;
         this.mmm$pendingValidMiningBreak = true;
@@ -101,18 +94,6 @@ public class ClientPlayerInteractionManagerMixin
 
         GameMode gameMode = client.interactionManager.getCurrentGameMode();
         return gameMode == GameMode.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
-    }
-
-    @Unique
-    private static boolean mmm$isHoldingEffectiveMiningTool(ClientPlayerEntity player, BlockState state)
-    {
-        if (player == null || state == null)
-        {
-            return false;
-        }
-
-        ItemStack stack = player.getMainHandStack();
-        return stack.isEmpty() == false && stack.isSuitableFor(state);
     }
 
     @Inject(method = "interactBlock", at = @At("RETURN"))

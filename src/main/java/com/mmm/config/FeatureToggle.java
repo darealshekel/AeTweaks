@@ -18,7 +18,6 @@ import fi.dy.masa.malilib.util.StringUtils;
 public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfigBoolean>
 {
     TWEAK_MINING_TRACKER("tweakMiningTracker", true, "", "Master switch for the mining tracker addon."),
-    TWEAK_REQUIRE_VALID_MINING_TOOL("tweakRequireValidMiningTool", true, "", "Only count mined blocks when the held item is effective for the broken block."),
     TWEAK_DAILY_GOAL("tweakDailyGoal", true, "", "Shows and tracks the daily goal."),
     TWEAK_DAILY_AUTO_RESET("tweakDailyAutoReset", true, "", "Resets the daily goal progress every 24 hours."),
     TWEAK_BLOCK_ESP("tweakBlockEsp", false, "", "Highlights the exact block currently under your cursor."),
