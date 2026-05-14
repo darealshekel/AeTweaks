@@ -2,6 +2,7 @@ package com.mmm.hud;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +59,7 @@ public class SessionHistoryScreen extends Screen
     private static final int ROW_ALT = MmmUi.ROW_ALT;
     private static final int GRAPH_FILL = MmmUi.GRAPH_FILL;
     private static final int GRAPH_GRID = MmmUi.GRAPH_GRID;
-    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd  HH:mm");
+    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("dd/MM/yy  HH:mm");
 
     private final Screen parent;
     private final List<SessionHistory.WorldHistory> worlds;
@@ -295,25 +296,32 @@ public class SessionHistoryScreen extends Screen
     {
         if (this.worlds.isEmpty())
         {
-            this.sessions = SessionHistory.getHistory();
+            this.sessions = newestFirst(SessionHistory.getHistory());
             this.worldName = WorldSessionContext.getCurrentWorldName();
         }
         else
         {
             this.selectedWorldIndex = Math.max(0, Math.min(this.worlds.size() - 1, index));
             SessionHistory.WorldHistory world = this.worlds.get(this.selectedWorldIndex);
-            this.sessions = world.sessions();
+            this.sessions = newestFirst(world.sessions());
             this.worldName = world.displayName();
         }
 
-        this.selectedIndex = this.sessions.isEmpty() ? -1 : this.sessions.size() - 1;
-        this.listScroll = Math.max(0, this.selectedIndex);
+        this.selectedIndex = this.sessions.isEmpty() ? -1 : 0;
+        this.listScroll = 0;
         this.detailScroll = 0;
         this.breakdownScroll = 0;
         if (playSound)
         {
             playClick();
         }
+    }
+
+    private static List<SessionData> newestFirst(List<SessionData> source)
+    {
+        List<SessionData> sorted = new ArrayList<>(source);
+        sorted.sort(Comparator.comparingLong((SessionData session) -> session.startTimeMs).reversed());
+        return sorted;
     }
 
     private void drawList(DrawContext context, Layout l, int mouseX, int mouseY)
