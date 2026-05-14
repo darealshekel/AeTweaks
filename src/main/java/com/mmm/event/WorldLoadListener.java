@@ -7,6 +7,7 @@ import com.mmm.storage.WorldSessionContext;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.tracker.BlockBreakdownTracker;
 import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
@@ -51,6 +52,7 @@ public class WorldLoadListener implements IWorldLoadListener
     {
         if (worldAfter != null)
         {
+            PerimeterWallDigHelper.refreshFromConfig();
             String previousWorldId = WorldSessionContext.getCurrentWorldId();
             WorldSessionContext.update(mc);
             String nextWorldId = WorldSessionContext.getCurrentWorldId();
