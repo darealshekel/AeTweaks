@@ -11,9 +11,12 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.mmm.MMM;
+import com.mmm.Reference;
 import com.mmm.config.Configs;
 import fi.dy.masa.malilib.util.FileUtils;
 
@@ -21,10 +24,12 @@ public final class SessionHistory
 {
     private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
     private static final long MIN_SESSION_BLOCKS = 1_000L;
-    private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions");
+    private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
+    private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(Reference.STORAGE_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static String currentWorldId = "default";
+    private static boolean legacyMigrationAttempted = false;
 
     private SessionHistory()
     {
@@ -33,6 +38,7 @@ public final class SessionHistory
     public static void loadForWorld(String worldId)
     {
         currentWorldId = normalizeWorldId(worldId);
+        migrateLegacySessionsIfNeeded();
         HISTORY.clear();
         best = null;
 
@@ -50,6 +56,7 @@ public final class SessionHistory
             return;
         }
 
+        migrateLegacySessionsIfNeeded();
         HISTORY.add(session);
         updateBest(session);
 
@@ -108,6 +115,7 @@ public final class SessionHistory
 
     public static List<WorldHistory> getWorldHistories()
     {
+        migrateLegacySessionsIfNeeded();
         List<String> worldIds = new ArrayList<>();
         if (Files.isDirectory(ROOT_DIR))
         {
@@ -258,6 +266,70 @@ public final class SessionHistory
     private static Path getWorldDir(String worldId)
     {
         return ROOT_DIR.resolve(normalizeWorldId(worldId));
+    }
+
+    private static void migrateLegacySessionsIfNeeded()
+    {
+        if (legacyMigrationAttempted)
+        {
+            return;
+        }
+        legacyMigrationAttempted = true;
+
+        if (LEGACY_ROOT_DIR.equals(ROOT_DIR) || Files.isDirectory(LEGACY_ROOT_DIR) == false)
+        {
+            return;
+        }
+
+        try (var paths = Files.list(LEGACY_ROOT_DIR))
+        {
+            paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to migrate session history from {} to {}: {}", LEGACY_ROOT_DIR, ROOT_DIR, e.getMessage());
+        }
+    }
+
+    private static void mergeLegacyWorldSessions(Path legacyWorldDir)
+    {
+        Path legacyFile = legacyWorldDir.resolve("sessions.csv");
+        if (Files.exists(legacyFile) == false)
+        {
+            return;
+        }
+
+        String worldId = legacyWorldDir.getFileName() == null ? "default" : legacyWorldDir.getFileName().toString();
+        Path sharedFile = getSaveFile(worldId);
+
+        try
+        {
+            Files.createDirectories(sharedFile.getParent());
+            Set<String> existing = new HashSet<>();
+            if (Files.exists(sharedFile))
+            {
+                existing.addAll(Files.readAllLines(sharedFile));
+            }
+
+            try (BufferedWriter writer = Files.newBufferedWriter(sharedFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND))
+            {
+                for (String line : Files.readAllLines(legacyFile))
+                {
+                    String trimmed = line == null ? "" : line.trim();
+                    if (trimmed.isEmpty() || existing.contains(trimmed))
+                    {
+                        continue;
+                    }
+                    writer.write(trimmed);
+                    writer.newLine();
+                    existing.add(trimmed);
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to merge legacy session history from {}: {}", legacyFile, e.getMessage());
+        }
     }
 
     public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}

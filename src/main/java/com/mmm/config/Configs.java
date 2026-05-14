@@ -14,6 +14,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mmm.MMM;
 import com.mmm.Reference;
+import com.mmm.storage.SharedStoragePaths;
+import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.util.BlockBreakdownCatalog;
 
 import fi.dy.masa.malilib.config.ConfigUtils;
@@ -70,6 +72,7 @@ public class Configs implements IConfigHandler
         public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "BPS Smoothing");
+        public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -102,6 +105,7 @@ public class Configs implements IConfigHandler
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
                 BPS_SMOOTHING,
+                SMALL_DIG_ITEMS,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -140,6 +144,7 @@ public class Configs implements IConfigHandler
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
                 BPS_SMOOTHING,
+                SMALL_DIG_ITEMS,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -273,6 +278,7 @@ public class Configs implements IConfigHandler
             Generic.DAILY_GOAL.setIntegerValue(MIN_DAILY_GOAL);
             dailyGoalMigrated = true;
         }
+        PerimeterWallDigHelper.refreshFromConfig();
 
         List<Integer> thresholds = getNotificationThresholds();
         thresholds.removeIf(value -> value <= 0 || value > 100);
@@ -328,7 +334,12 @@ public class Configs implements IConfigHandler
             }
         }
 
+        boolean sharedStateLoaded = readCrossVersionState();
         onConfigLoaded();
+        if (sharedStateLoaded == false)
+        {
+            writeCrossVersionState();
+        }
     }
 
     public static void saveToFile()
@@ -343,6 +354,8 @@ public class Configs implements IConfigHandler
             writeCustomState(root);
             JsonUtils.writeJsonToFile(root, getPrimaryConfigFile());
         }
+
+        writeCrossVersionState();
     }
 
     public static List<BooleanHotkeyGuiWrapper> getWrappedToggles()
@@ -584,6 +597,71 @@ public class Configs implements IConfigHandler
                 }
             }
         }
+    }
+
+    private static boolean readCrossVersionState()
+    {
+        File stateFile = SharedStoragePaths.crossVersionStateFile().toFile();
+        if (stateFile.exists() == false || stateFile.isFile() == false || stateFile.canRead() == false)
+        {
+            return false;
+        }
+
+        try
+        {
+            JsonElement element = JsonUtils.parseJsonFile(stateFile);
+            if (element == null || element.isJsonObject() == false)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to parse cross-version state file {}: root JSON is missing or not an object", stateFile);
+                return false;
+            }
+
+            JsonObject root = element.getAsJsonObject();
+            JsonObject state = root.has("State") && root.get("State").isJsonObject() ? root.getAsJsonObject("State") : root;
+            String context = "cross-version State";
+            long dailyGoal = readLong(state, "dailyGoal", Generic.DAILY_GOAL.getIntegerValue(), context);
+            Generic.DAILY_GOAL.setIntegerValue((int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, dailyGoal)));
+            dailyProgress = readLong(state, "dailyProgress", dailyProgress, context);
+            dailyGoalLastResetMs = readLong(state, "dailyGoalLastResetMs", dailyGoalLastResetMs, context);
+            dailyBlocksMined = readLong(state, "dailyBlocksMined", dailyBlocksMined, context);
+            dailyBlocksDate = readString(state, "dailyBlocksDate", dailyBlocksDate, context);
+            weeklyBlocksMined = readLong(state, "weeklyBlocksMined", weeklyBlocksMined, context);
+            weeklyBlocksWeek = readString(state, "weeklyBlocksWeek", weeklyBlocksWeek, context);
+            personalRecordDailyBlocks = readLong(state, "personalRecordDailyBlocks", personalRecordDailyBlocks, context);
+            personalRecordWeeklyBlocks = readLong(state, "personalRecordWeeklyBlocks", personalRecordWeeklyBlocks, context);
+            return true;
+        }
+        catch (Exception e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to load cross-version state file {}: {}", stateFile, e.getMessage());
+            return false;
+        }
+    }
+
+    private static void writeCrossVersionState()
+    {
+        File stateFile = SharedStoragePaths.crossVersionStateFile().toFile();
+        File dir = stateFile.getParentFile();
+        if (dir == null || (dir.exists() == false && dir.mkdirs() == false))
+        {
+            MMM.LOGGER.warn("[MMM] Failed to create cross-version state directory for {}", stateFile);
+            return;
+        }
+
+        JsonObject state = new JsonObject();
+        state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
+        state.addProperty("dailyProgress", dailyProgress);
+        state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
+        state.addProperty("dailyBlocksMined", dailyBlocksMined);
+        state.addProperty("dailyBlocksDate", dailyBlocksDate == null ? "" : dailyBlocksDate);
+        state.addProperty("weeklyBlocksMined", weeklyBlocksMined);
+        state.addProperty("weeklyBlocksWeek", weeklyBlocksWeek == null ? "" : weeklyBlocksWeek);
+        state.addProperty("personalRecordDailyBlocks", personalRecordDailyBlocks);
+        state.addProperty("personalRecordWeeklyBlocks", personalRecordWeeklyBlocks);
+
+        JsonObject root = new JsonObject();
+        root.add("State", state);
+        JsonUtils.writeJsonToFile(root, stateFile);
     }
 
     private static void writeCustomState(JsonObject root)

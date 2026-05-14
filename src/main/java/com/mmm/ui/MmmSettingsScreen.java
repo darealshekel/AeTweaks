@@ -740,7 +740,8 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.performance(
-                new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
+                new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
+                new SettingRow("Small Dig Items", "Shrink dropped and held MMM breakdown blocks.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.developer(
                 new SettingRow("Generate Dev Run", "Create and end a 3h15m test session.", null, ControlKind.ACTION)

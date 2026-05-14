@@ -3,6 +3,7 @@ package com.mmm.tweak;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 
 import net.minecraft.block.Block;
@@ -50,6 +51,11 @@ public final class PerimeterWallDigHelper
                 OUTLINE_BLOCKS.add(block);
             }
         }
+    }
+
+    public static void refreshFromConfig()
+    {
+        setOutlineBlocks(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
     }
 
     private static Block getBlockFromName(String name)

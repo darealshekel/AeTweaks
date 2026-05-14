@@ -44,7 +44,7 @@ public final class Callbacks
             PerimeterWallDigHelper.setOutlineBlocks(config.getStrings());
             Configs.saveToFile();
         });
-        PerimeterWallDigHelper.setOutlineBlocks(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
+        PerimeterWallDigHelper.refreshFromConfig();
         Configs.Generic.BLOCK_ESP_HEX_COLOR.setValueChangeCallback(config -> {
             config.setValueFromString(Configs.normalizeBlockEspHexColor(config.getStringValue()));
             Configs.saveToFile();
