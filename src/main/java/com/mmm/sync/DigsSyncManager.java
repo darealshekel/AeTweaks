@@ -62,7 +62,7 @@ public final class DigsSyncManager
         {
             latestModel = selection.model();
             MiningStats.bootstrapSourceTotalFromScoreboard(latestModel.totalDigs(), latestModel.server(), now);
-            MiningStats.applyAeternumTotalMined(latestModel.totalDigs(), now);
+            MiningStats.applyScoreboardTotalMined(latestModel.totalDigs(), now);
             if (status != SyncStatus.SYNCED)
             {
                 status = SyncStatus.CONNECTED;
