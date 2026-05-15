@@ -5,27 +5,25 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
-import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SessionHistory
 {
     private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
     private static final long MIN_SESSION_BLOCKS = 1_000L;
     private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
-    private static final Path LEGACY_ROOT_DIR = FileUtils.getConfigDirectoryAsPath().resolve(Reference.STORAGE_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static String currentWorldId = "default";
@@ -276,19 +274,33 @@ public final class SessionHistory
         }
         legacyMigrationAttempted = true;
 
-        if (LEGACY_ROOT_DIR.equals(ROOT_DIR) || Files.isDirectory(LEGACY_ROOT_DIR) == false)
+        for (Path legacyRootDir : findLegacySessionRoots())
         {
-            return;
-        }
+            if (legacyRootDir.equals(ROOT_DIR) || Files.isDirectory(legacyRootDir) == false)
+            {
+                continue;
+            }
 
-        try (var paths = Files.list(LEGACY_ROOT_DIR))
-        {
-            paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+            try (var paths = Files.list(legacyRootDir))
+            {
+                paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+            }
+            catch (IOException e)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to migrate session history from {} to {}: {}", legacyRootDir, ROOT_DIR, e.getMessage());
+            }
         }
-        catch (IOException e)
+    }
+
+    private static Set<Path> findLegacySessionRoots()
+    {
+        Set<Path> roots = new LinkedHashSet<>();
+        for (Path configDir : SharedStoragePaths.legacyConfigDirs())
         {
-            MMM.LOGGER.warn("[MMM] Failed to migrate session history from {} to {}: {}", LEGACY_ROOT_DIR, ROOT_DIR, e.getMessage());
+            roots.add(configDir.resolve(Reference.STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
+            roots.add(configDir.resolve(Reference.LEGACY_STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
         }
+        return roots;
     }
 
     private static void mergeLegacyWorldSessions(Path legacyWorldDir)

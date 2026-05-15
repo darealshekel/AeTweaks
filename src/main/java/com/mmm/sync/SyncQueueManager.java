@@ -110,7 +110,7 @@ public final class SyncQueueManager
         }
 
         initialize();
-        queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, false);
+        queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, true);
         requestFlush("enqueue finished session");
     }
 
