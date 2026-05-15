@@ -2,12 +2,12 @@ package com.mmm.sync;
 
 import java.util.List;
 
-public record AeternumLeaderboardSnapshot(
+public record SourceLeaderboardSnapshot(
         String serverName,
         String objectiveTitle,
         long capturedAtMs,
         long totalDigs,
-        List<AeternumLeaderboardEntry> entries
+        List<SourceLeaderboardEntry> entries
 )
 {
     public boolean isValid()
@@ -16,10 +16,10 @@ public record AeternumLeaderboardSnapshot(
                 && this.serverName.isBlank() == false
                 && this.entries != null
                 && this.entries.isEmpty() == false
-                && this.entries.stream().allMatch(AeternumLeaderboardEntry::isValid);
+                && this.entries.stream().allMatch(SourceLeaderboardEntry::isValid);
     }
 
-    public boolean sameValues(AeternumLeaderboardSnapshot other)
+    public boolean sameValues(SourceLeaderboardSnapshot other)
     {
         if (other == null || this.totalDigs != other.totalDigs || this.entries.size() != other.entries.size())
         {

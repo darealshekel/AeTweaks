@@ -31,7 +31,7 @@ final class CarpetFakePlayerDetector
     {
     }
 
-    static Set<String> findLikelyFakeUsernames(MinecraftClient client, List<AeternumLeaderboardEntry> entries)
+    static Set<String> findLikelyFakeUsernames(MinecraftClient client, List<SourceLeaderboardEntry> entries)
     {
         Set<String> usernames = new LinkedHashSet<>();
         if (client == null || client.getNetworkHandler() == null || entries == null || entries.isEmpty())
@@ -45,7 +45,7 @@ final class CarpetFakePlayerDetector
             return usernames;
         }
 
-        for (AeternumLeaderboardEntry entry : entries)
+        for (SourceLeaderboardEntry entry : entries)
         {
             if (entry == null || entry.username() == null || entry.username().isBlank())
             {
