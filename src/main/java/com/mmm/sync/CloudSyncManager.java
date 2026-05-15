@@ -31,26 +31,19 @@ public final class CloudSyncManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
-    private static final long AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
+    private static final long SOURCE_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
-    private static final long SYNC_CHECK_LOG_INTERVAL_MS = 5_000L;
-    private static final long WEBSITE_GLOBAL_TOTAL_STALE_LOG_INTERVAL_MS = 30_000L;
-    private static final long PAYLOAD_CREATED_LOG_INTERVAL_MS = 5_000L;
-    private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
-    // Minimum gap between light-only heartbeats when payload data has not changed.
-    private static final long LIGHT_HEARTBEAT_INTERVAL_MS = 5 * 60_000L;
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
-    private static long lastAeternumScoreboardSyncMs;
-    private static long lastLightHeartbeatMs;
+    private static long lastSourceScoreboardScanMs;
     private static volatile SyncStatus syncStatus = SyncStatus.CONNECTED;
     private static volatile String syncStatusDetail = "";
     private static volatile long lastHealthySignalMs;
     private static volatile long lastFailureSignalMs;
-    private static AeternumLeaderboardSnapshot latestLeaderboardSnapshot;
+    private static SourceLeaderboardSnapshot latestLeaderboardSnapshot;
     private static String lastQueuedLiveFingerprint;
     private static String lastSuccessfulLiveFingerprint;
     private static String lastSuccessfulLeaderboardFingerprint;
@@ -76,10 +69,10 @@ public final class CloudSyncManager
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (now - lastAeternumScoreboardSyncMs >= AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS)
+        if (now - lastSourceScoreboardScanMs >= SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
         {
-            lastAeternumScoreboardSyncMs = now;
-            latestLeaderboardSnapshot = AeternumLeaderboardReader.read(client);
+            lastSourceScoreboardScanMs = now;
+            latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
             maybeBootstrapFromLeaderboardSnapshot(client, now);
         }
 
@@ -114,25 +107,7 @@ public final class CloudSyncManager
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        JsonObject fullPayload = buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus());
-        String fingerprint = livePayloadFingerprint(fullPayload);
-        boolean fingerprintChanged = fingerprint != null && fingerprint.equals(lastSuccessfulLiveFingerprint) == false;
-
-        if (fingerprintChanged)
-        {
-            // Data changed since last successful sync — send full payload.
-            queueLivePayload(fullPayload, true);
-        }
-        else
-        {
-            // Nothing changed. Only send a lightweight heartbeat if enough time has passed.
-            long lastHeavySentMs = Math.max(lastLightHeartbeatMs, Configs.websiteLastSuccessfulSyncMs);
-            if (now - lastHeavySentMs >= LIGHT_HEARTBEAT_INTERVAL_MS)
-            {
-                lastLightHeartbeatMs = now;
-                queueLivePayload(buildLightPayload(liveSession), true);
-            }
-        }
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
 
     public static void syncNow(String reason)
@@ -179,7 +154,7 @@ public final class CloudSyncManager
         boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
         boolean hasSessionToken = hasSessionToken(client);
 
-        if (MmmDebugLogger.shouldLog("cloud-sync-check", SYNC_CHECK_LOG_INTERVAL_MS))
+        if (MmmDebugLogger.shouldLog("cloud-sync-check", 5_000L))
         {
             MMM.LOGGER.info(
                     "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} playerUuid={} playerName={} sourceSlug={} sourceName={} totalMined={} sessionMined={} targetUrl={}",
@@ -235,7 +210,6 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
-        SyncDeltaStore.markPayloadSynced(payload);
         applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
@@ -373,8 +347,7 @@ public final class CloudSyncManager
         syncStatusDetail = "";
         lastHeartbeatMs = 0L;
         lastLiveBlockSyncMs = 0L;
-        lastAeternumScoreboardSyncMs = 0L;
-        lastLightHeartbeatMs = 0L;
+        lastSourceScoreboardScanMs = 0L;
         lastQueuedLiveFingerprint = null;
         lastSuccessfulLiveFingerprint = null;
         lastSuccessfulLeaderboardFingerprint = null;
@@ -420,8 +393,7 @@ public final class CloudSyncManager
         lastLiveBlockSyncMs = now;
         lastHeartbeatMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        // force=false: fingerprint deduplication prevents re-sending identical data.
-        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), false);
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
 
     private static void queueLivePayload(JsonObject payload)
@@ -505,7 +477,7 @@ public final class CloudSyncManager
                 {
                     MmmDebugLogger.info(
                             "website-global-total-stale",
-                            WEBSITE_GLOBAL_TOTAL_STALE_LOG_INTERVAL_MS,
+                            30_000L,
                             "[MMM_SYNC] ignored lower website global total candidate={} current={}",
                             globalTotal,
                             currentGlobalTotal);
@@ -517,9 +489,8 @@ public final class CloudSyncManager
                 Configs.saveToFile();
             }
         }
-        catch (Exception e)
+        catch (Exception ignored)
         {
-            MMM.LOGGER.warn("{} failed to parse sync response: {}", LOG_PREFIX, e.getMessage());
         }
     }
 
@@ -557,15 +528,8 @@ public final class CloudSyncManager
             JsonElement element = object.get(key);
             return element != null && element.isJsonPrimitive() ? element.getAsLong() : fallback;
         }
-        catch (Exception e)
+        catch (Exception ignored)
         {
-            MmmDebugLogger.debug(
-                    "cloud-sync-json-long-" + key,
-                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
-                    "{} failed to parse sync response field '{}': {}",
-                    LOG_PREFIX,
-                    key,
-                    e.getMessage());
             return fallback;
         }
     }
@@ -627,34 +591,6 @@ public final class CloudSyncManager
         return MiningStats.isSessionPaused() ? "paused" : "active";
     }
 
-    /**
-     * Lightweight payload for keep-alive heartbeats when no data has changed.
-     * Omits heavy fields (aeternum_leaderboard, block breakdowns, source scan)
-     * to avoid redundant large transfers.
-     */
-    private static JsonObject buildLightPayload(SessionData session)
-    {
-        MinecraftClient client = MinecraftClient.getInstance();
-        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
-        MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
-
-        JsonObject payload = new JsonObject();
-        payload.addProperty("client_id", Configs.cloudClientId);
-        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
-        payload.addProperty("username", resolveUsername(client));
-        payload.addProperty("mod_version", Reference.MOD_VERSION);
-        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
-        payload.addProperty("light_heartbeat", true);
-        payload.add("world", buildWorld(worldInfo));
-        payload.add("lifetime_totals", buildLifetimeTotals());
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
-        payload.add("session_state", buildSessionState());
-        payload.add("daily_goal", buildDailyGoal(dailyGoal));
-        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
-        return payload;
-    }
-
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -676,33 +612,25 @@ public final class CloudSyncManager
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
         {
-            JsonObject syncBreakdown = SyncDeltaStore.currentWorldBlockBreakdownForSync(currentWorldBlockBreakdown);
-            if (syncBreakdown != null)
-            {
-                payload.add("current_world_block_breakdown", syncBreakdown);
-            }
+            payload.add("current_world_block_breakdown", currentWorldBlockBreakdown);
         }
 
         JsonObject serverPlayerBlockBreakdowns = ServerPlayerBlockBreakdownScanner.scan(client, worldInfo);
-        if (serverPlayerBlockBreakdowns != null && SyncDeltaStore.shouldSendServerPlayerBlockBreakdowns(serverPlayerBlockBreakdowns))
+        if (serverPlayerBlockBreakdowns != null)
         {
             payload.add("server_player_block_breakdowns", serverPlayerBlockBreakdowns);
         }
 
         JsonObject sourceScan = buildSourceScan(client, worldInfo);
-        if (sourceScan != null && SyncDeltaStore.shouldSendSourceScan(sourceScan))
+        if (sourceScan != null)
         {
             payload.add("source_scan", sourceScan);
         }
 
-        JsonObject aeternumLeaderboard = buildAeternumLeaderboard();
-        if (aeternumLeaderboard != null)
+        JsonObject sourceLeaderboard = buildSourceLeaderboard();
+        if (sourceLeaderboard != null)
         {
-            JsonObject syncLeaderboard = SyncDeltaStore.aeternumLeaderboardForSync(aeternumLeaderboard);
-            if (syncLeaderboard != null)
-            {
-                payload.add("aeternum_leaderboard", syncLeaderboard);
-            }
+            payload.add("source_leaderboard", sourceLeaderboard);
         }
 
         payload.add("projects", buildProjects());
@@ -786,7 +714,7 @@ public final class CloudSyncManager
         return totals;
     }
 
-    private static JsonObject buildAeternumLeaderboard()
+    private static JsonObject buildSourceLeaderboard()
     {
         if (latestLeaderboardSnapshot == null || latestLeaderboardSnapshot.isValid() == false)
         {
@@ -796,10 +724,10 @@ public final class CloudSyncManager
         MinecraftClient client = MinecraftClient.getInstance();
         Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, latestLeaderboardSnapshot.entries());
 
-        List<AeternumLeaderboardEntry> realEntries = latestLeaderboardSnapshot.entries().stream()
+        List<SourceLeaderboardEntry> realEntries = latestLeaderboardSnapshot.entries().stream()
                 .filter(entry -> entry.isValid())
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
-                .sorted(Comparator.comparingInt(AeternumLeaderboardEntry::rank))
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                 .toList();
 
         if (realEntries.isEmpty())
@@ -814,7 +742,7 @@ public final class CloudSyncManager
         leaderboard.addProperty("source_type", "scoreboard");
 
         long snapshotTotalDigs = Math.max(0L, latestLeaderboardSnapshot.totalDigs());
-        long filteredTotalDigs = realEntries.stream().mapToLong(AeternumLeaderboardEntry::digs).sum();
+        long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
         long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
         if (payloadTotalDigs > 0L)
         {
@@ -822,7 +750,7 @@ public final class CloudSyncManager
         }
 
         JsonArray entries = new JsonArray();
-        for (AeternumLeaderboardEntry entry : realEntries)
+        for (SourceLeaderboardEntry entry : realEntries)
         {
             JsonObject row = new JsonObject();
             row.addProperty("username", entry.username());
@@ -982,7 +910,7 @@ public final class CloudSyncManager
         sessionObject.addProperty("top_block", getTopBlock(sanitizedBreakdown));
         sessionObject.addProperty("status", status);
         sessionObject.add("block_breakdown", buildBreakdown(sanitizedBreakdown));
-        sessionObject.add("rate_points", buildRatePoints(session));
+        sessionObject.add("rate_points", buildRatePoints(session.miningRateBuckets));
         return sessionObject;
     }
 
@@ -1000,16 +928,16 @@ public final class CloudSyncManager
         return array;
     }
 
-    private static JsonArray buildRatePoints(SessionData session)
+    private static JsonArray buildRatePoints(List<Integer> rateBuckets)
     {
         JsonArray array = new JsonArray();
-        List<Integer> buckets = session == null || session.miningRateBuckets == null ? List.of() : new ArrayList<>(session.miningRateBuckets);
+        List<Integer> buckets = rateBuckets == null ? List.of() : new ArrayList<>(rateBuckets);
 
         for (int index = 0; index < buckets.size(); index++)
         {
             JsonObject point = new JsonObject();
             point.addProperty("point_index", index);
-            point.addProperty("blocks_per_hour", session.getBucketBlocksPerHour(buckets.get(index)));
+            point.addProperty("blocks_per_hour", Math.max(0, buckets.get(index)) * 60);
             point.addProperty("elapsed_seconds", (index + 1) * 60);
             array.add(point);
         }
@@ -1050,14 +978,8 @@ public final class CloudSyncManager
                 return username;
             }
         }
-        catch (Exception e)
+        catch (Exception ignored)
         {
-            MmmDebugLogger.debug(
-                    "cloud-sync-username",
-                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
-                    "{} failed to resolve session username: {}",
-                    LOG_PREFIX,
-                    e.getMessage());
         }
 
         if (client.player != null)
@@ -1080,14 +1002,8 @@ public final class CloudSyncManager
             String token = client.getSession().getAccessToken();
             return token != null && token.isBlank() == false;
         }
-        catch (Exception e)
+        catch (Exception ignored)
         {
-            MmmDebugLogger.debug(
-                    "cloud-sync-session-token",
-                    JSON_PARSE_DEBUG_LOG_INTERVAL_MS,
-                    "{} failed to inspect session token: {}",
-                    LOG_PREFIX,
-                    e.getMessage());
             return false;
         }
     }
@@ -1102,7 +1018,7 @@ public final class CloudSyncManager
         String username = client.player.getGameProfile().getName();
         long localPlayerDigs = latestLeaderboardSnapshot.entries().stream()
                 .filter(entry -> entry.username().equalsIgnoreCase(username))
-                .mapToLong(AeternumLeaderboardEntry::digs)
+                .mapToLong(SourceLeaderboardEntry::digs)
                 .max()
                 .orElse(0L);
         if (localPlayerDigs <= 0L)
@@ -1134,12 +1050,12 @@ public final class CloudSyncManager
 
         if (payload.has("current_world_totals"))
         {
-            minimal.add("current_world_totals", stableCurrentWorldTotals(payload.getAsJsonObject("current_world_totals")));
+            minimal.add("current_world_totals", payload.get("current_world_totals"));
         }
 
         if (payload.has("mining_records"))
         {
-            minimal.add("mining_records", stableMiningRecords(payload.getAsJsonObject("mining_records")));
+            minimal.add("mining_records", payload.get("mining_records"));
         }
 
         if (payload.has("current_world_block_breakdown"))
@@ -1157,9 +1073,9 @@ public final class CloudSyncManager
             minimal.add("source_scan", payload.get("source_scan"));
         }
 
-        if (payload.has("aeternum_leaderboard"))
+        if (payload.has("source_leaderboard"))
         {
-            minimal.add("aeternum_leaderboard", payload.get("aeternum_leaderboard"));
+            minimal.add("source_leaderboard", payload.get("source_leaderboard"));
         }
 
         if (payload.has("session"))
@@ -1170,38 +1086,7 @@ public final class CloudSyncManager
         return GSON.toJson(minimal);
     }
 
-    private static JsonObject stableCurrentWorldTotals(JsonObject totals)
-    {
-        JsonObject stable = new JsonObject();
-        copyIfPresent(totals, stable, "world_key");
-        copyIfPresent(totals, stable, "display_name");
-        copyIfPresent(totals, stable, "kind");
-        copyIfPresent(totals, stable, "total_blocks");
-        return stable;
-    }
-
-    private static JsonObject stableMiningRecords(JsonObject records)
-    {
-        JsonObject stable = new JsonObject();
-        copyIfPresent(records, stable, "daily_blocks_date");
-        copyIfPresent(records, stable, "weekly_blocks_week");
-        copyIfPresent(records, stable, "daily_blocks_mined");
-        copyIfPresent(records, stable, "weekly_blocks_mined");
-        copyIfPresent(records, stable, "personal_record_daily_blocks");
-        copyIfPresent(records, stable, "personal_record_weekly_blocks");
-        copyIfPresent(records, stable, "fastest_100k_seconds");
-        return stable;
-    }
-
-    private static void copyIfPresent(JsonObject from, JsonObject to, String key)
-    {
-        if (from != null && from.has(key))
-        {
-            to.add(key, from.get(key).deepCopy());
-        }
-    }
-
-    private static String leaderboardFingerprint(AeternumLeaderboardSnapshot snapshot)
+    private static String leaderboardFingerprint(SourceLeaderboardSnapshot snapshot)
     {
         if (snapshot == null || snapshot.isValid() == false)
         {
@@ -1215,7 +1100,7 @@ public final class CloudSyncManager
 
         JsonArray entries = new JsonArray();
         snapshot.entries().stream()
-                .sorted(Comparator.comparingInt(AeternumLeaderboardEntry::rank))
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                 .forEach(entry -> {
                     JsonObject row = new JsonObject();
                     row.addProperty("username", entry.username());
@@ -1236,7 +1121,7 @@ public final class CloudSyncManager
         lastPayloadSourceKey = sourceKey;
         lastPayloadSourceName = sourceName;
 
-        if (MmmDebugLogger.shouldLog("cloud-sync-payload-created", PAYLOAD_CREATED_LOG_INTERVAL_MS) == false)
+        if (MmmDebugLogger.shouldLog("cloud-sync-payload-created", 5_000L) == false)
         {
             return;
         }

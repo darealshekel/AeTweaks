@@ -3,15 +3,18 @@ package com.mmm.sync;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.mmm.util.MmmDebugLogger;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.scoreboard.ScoreboardEntry;
 
 final class ScoreboardParser
 {
@@ -32,6 +35,39 @@ final class ScoreboardParser
             "mined blocks",
             "network"
     );
+    private static final List<String> TOTAL_OBJECTIVE_MARKERS = List.of(
+            "sum",
+            "total",
+            "combinedblocks",
+            "combined blocks",
+            "combined_blocks",
+            "combined-blocks",
+            "blocks mined",
+            "mined blocks"
+    );
+    private static final List<String> DIG_OBJECTIVE_MARKERS = List.of(
+            "dig",
+            "dug",
+            "dugga"
+    );
+    private static final List<String> PARTIAL_OBJECTIVE_MARKERS = List.of(
+            "pickuses",
+            "pick uses",
+            "pick_uses",
+            "pick-uses",
+            "pickaxeuses",
+            "pickaxe uses",
+            "pickaxe_uses",
+            "pickaxe-uses",
+            "axeuses",
+            "axe uses",
+            "axe_uses",
+            "axe-uses",
+            "shoveluses",
+            "shovel uses",
+            "shovel_uses",
+            "shovel-uses"
+    );
 
     private ScoreboardParser()
     {
@@ -44,7 +80,16 @@ final class ScoreboardParser
             return null;
         }
 
-        String objectiveTitle = clean(objective.getDisplayName().getString());
+        String objectiveName = clean(objective.getName());
+        String displayTitle = clean(objective.getDisplayName().getString());
+        String objectiveContext = objectiveContext(objectiveName, displayTitle);
+        int objectivePriority = objectivePriority(objectiveContext);
+        if (objectivePriority <= 0)
+        {
+            return null;
+        }
+
+        String objectiveTitle = preferredObjectiveTitle(objectiveName, displayTitle);
         List<ScoreboardLine> rawLines = entries.stream()
                 .map(ScoreboardParser::toLine)
                 .filter(line -> line != null)
@@ -55,23 +100,145 @@ final class ScoreboardParser
             return null;
         }
 
-        List<AeternumLeaderboardEntry> leaderboardEntries = parseEntries(rawLines);
+        List<SourceLeaderboardEntry> leaderboardEntries = parseEntries(rawLines);
         if (leaderboardEntries.size() < 3)
         {
             return null;
         }
 
-        long totalDigs = parseTotalDigs(objectiveTitle, rawLines, leaderboardEntries);
-        int confidence = computeConfidence(currentUsername, objectiveTitle, leaderboardEntries, totalDigs, rawLines);
+        long totalDigs = parseTotalDigs(objectiveContext, rawLines, leaderboardEntries);
+        int confidence = computeConfidence(currentUsername, objectiveContext, leaderboardEntries, totalDigs, rawLines);
         if (confidence <= 0)
         {
             return null;
         }
 
         return new Candidate(
-                new AeternumLeaderboardSnapshot(serverName, objectiveTitle, System.currentTimeMillis(), totalDigs, leaderboardEntries),
+                new SourceLeaderboardSnapshot(serverName, objectiveTitle, System.currentTimeMillis(), totalDigs, leaderboardEntries),
                 confidence,
+                objectivePriority,
                 rawLines
+        );
+    }
+
+    static Candidate parseCombinedToolUsage(String currentUsername, String serverName, Collection<ObjectiveRows> objectives)
+    {
+        if (objectives == null || objectives.isEmpty())
+        {
+            return null;
+        }
+
+        Map<String, ToolUsageEntry> byUsername = new LinkedHashMap<>();
+        Set<ToolKind> detectedKinds = new LinkedHashSet<>();
+        List<ScoreboardLine> sampleLines = new ArrayList<>();
+
+        for (ObjectiveRows rows : objectives)
+        {
+            if (rows == null || rows.objective() == null || rows.entries() == null || rows.entries().isEmpty())
+            {
+                continue;
+            }
+
+            String objectiveName = clean(rows.objective().getName());
+            String displayTitle = clean(rows.objective().getDisplayName().getString());
+            String objectiveContext = objectiveContext(objectiveName, displayTitle);
+            ToolKind toolKind = toolKind(objectiveContext);
+            if (toolKind == ToolKind.NONE)
+            {
+                continue;
+            }
+
+            List<ScoreboardLine> rawLines = rows.entries().stream()
+                    .map(ScoreboardParser::toLine)
+                    .filter(line -> line != null)
+                    .toList();
+            if (rawLines.isEmpty())
+            {
+                continue;
+            }
+
+            List<SourceLeaderboardEntry> parsedEntries = parseEntries(rawLines);
+            if (parsedEntries.isEmpty())
+            {
+                continue;
+            }
+
+            detectedKinds.add(toolKind);
+            if (sampleLines.size() < 30)
+            {
+                sampleLines.addAll(rawLines.stream().limit(Math.max(0, 30 - sampleLines.size())).toList());
+            }
+
+            for (SourceLeaderboardEntry entry : parsedEntries)
+            {
+                if (entry == null || entry.username() == null || entry.username().isBlank() || entry.digs() <= 0L)
+                {
+                    continue;
+                }
+
+                String key = entry.username().toLowerCase(Locale.ROOT);
+                ToolUsageEntry usageEntry = byUsername.computeIfAbsent(key, ignored -> new ToolUsageEntry(entry.username()));
+                usageEntry.putMax(toolKind, entry.digs());
+            }
+        }
+
+        if (byUsername.isEmpty() || detectedKinds.isEmpty())
+        {
+            return null;
+        }
+
+        List<ToolUsageEntry> ranked = byUsername.values().stream()
+                .filter(entry -> entry.total() > 0L)
+                .sorted(Comparator
+                        .comparingLong(ToolUsageEntry::total).reversed()
+                        .thenComparing(entry -> entry.username().toLowerCase(Locale.ROOT)))
+                .toList();
+        if (ranked.isEmpty())
+        {
+            return null;
+        }
+
+        List<SourceLeaderboardEntry> combinedEntries = new ArrayList<>();
+        long totalDigs = 0L;
+        for (int index = 0; index < ranked.size(); index++)
+        {
+            ToolUsageEntry entry = ranked.get(index);
+            long total = entry.total();
+            totalDigs += total;
+            combinedEntries.add(new SourceLeaderboardEntry(entry.username(), total, index + 1));
+        }
+
+        int confidence = 55;
+        confidence += Math.min(30, detectedKinds.size() * 10);
+        if (combinedEntries.size() >= 3)
+        {
+            confidence += 15;
+        }
+        if (combinedEntries.size() >= 10)
+        {
+            confidence += 10;
+        }
+        if (currentUsername != null
+                && currentUsername.isBlank() == false
+                && combinedEntries.stream().anyMatch(entry -> entry.username().equalsIgnoreCase(currentUsername)))
+        {
+            confidence += 10;
+        }
+        if (totalDigs > 0L)
+        {
+            confidence += 10;
+        }
+
+        return new Candidate(
+                new SourceLeaderboardSnapshot(
+                        serverName,
+                        combinedToolUsageTitle(detectedKinds),
+                        System.currentTimeMillis(),
+                        totalDigs,
+                        combinedEntries),
+                confidence,
+                60,
+                sampleLines
         );
     }
 
@@ -105,7 +272,7 @@ final class ScoreboardParser
         );
     }
 
-    private static List<AeternumLeaderboardEntry> parseEntries(List<ScoreboardLine> lines)
+    private static List<SourceLeaderboardEntry> parseEntries(List<ScoreboardLine> lines)
     {
         Map<String, ParsedEntry> byUsername = new LinkedHashMap<>();
 
@@ -135,22 +302,22 @@ final class ScoreboardParser
                         .thenComparing(entry -> entry.username().toLowerCase(Locale.ROOT)))
                 .toList();
 
-        List<AeternumLeaderboardEntry> leaderboardEntries = new ArrayList<>();
+        List<SourceLeaderboardEntry> leaderboardEntries = new ArrayList<>();
         for (int index = 0; index < ranked.size(); index++)
         {
             ParsedEntry entry = ranked.get(index);
             int rank = entry.rankHint() > 0 ? entry.rankHint() : index + 1;
-            leaderboardEntries.add(new AeternumLeaderboardEntry(entry.username(), entry.digs(), rank));
+            leaderboardEntries.add(new SourceLeaderboardEntry(entry.username(), entry.digs(), rank));
         }
 
         leaderboardEntries = leaderboardEntries.stream()
-                .sorted(Comparator.comparingInt(AeternumLeaderboardEntry::rank))
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                 .toList();
 
         return leaderboardEntries;
     }
 
-    private static long parseTotalDigs(String objectiveTitle, List<ScoreboardLine> rawLines, List<AeternumLeaderboardEntry> leaderboardEntries)
+    private static long parseTotalDigs(String objectiveTitle, List<ScoreboardLine> rawLines, List<SourceLeaderboardEntry> leaderboardEntries)
     {
         long bestExplicitTotal = 0L;
         for (int index = 0; index < rawLines.size(); index++)
@@ -205,11 +372,9 @@ final class ScoreboardParser
 
     private static boolean looksLikeServerTotalLine(String objectiveTitle, ScoreboardLine line)
     {
-        String objectiveLower = objectiveTitle == null ? "" : objectiveTitle.toLowerCase(Locale.ROOT);
+        String objectiveLower = normalizedObjectiveText(objectiveTitle);
         String lower = line.lower();
-        boolean objectiveIsDigsBoard = objectiveLower.contains("dig")
-                || objectiveLower.contains("dug")
-                || objectiveLower.contains("dugga");
+        boolean objectiveIsDigsBoard = objectivePriority(objectiveLower) >= 70;
 
         boolean lineLooksLikeTotal = SERVER_TOTAL_MARKERS.stream().anyMatch(lower::contains)
                 && ((lower.contains("total") && (lower.contains("dig") || lower.contains("dug")))
@@ -225,17 +390,25 @@ final class ScoreboardParser
 
     private static int computeConfidence(String currentUsername,
                                          String objectiveTitle,
-                                         List<AeternumLeaderboardEntry> leaderboardEntries,
+                                         List<SourceLeaderboardEntry> leaderboardEntries,
                                          long totalDigs,
                                          List<ScoreboardLine> lines)
     {
         int confidence = 0;
-        String titleLower = objectiveTitle == null ? "" : objectiveTitle.toLowerCase(Locale.ROOT);
+        String titleLower = normalizedObjectiveText(objectiveTitle);
         String usernameLower = currentUsername == null ? "" : currentUsername.toLowerCase(Locale.ROOT);
 
-        if (titleLower.contains("dig") || titleLower.contains("dug"))
+        if (containsTotalObjectiveMarker(titleLower))
+        {
+            confidence += 70;
+        }
+        else if (containsAnyObjectiveMarker(titleLower, DIG_OBJECTIVE_MARKERS))
         {
             confidence += 50;
+        }
+        else if (containsAnyObjectiveMarker(titleLower, PARTIAL_OBJECTIVE_MARKERS))
+        {
+            confidence += 35;
         }
 
         if (titleLower.contains("leader") || titleLower.contains("rank"))
@@ -270,6 +443,155 @@ final class ScoreboardParser
         }
 
         return confidence;
+    }
+
+    static int objectivePriority(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        if (containsTotalObjectiveMarker(lower))
+        {
+            return 90;
+        }
+        if (containsAnyObjectiveMarker(lower, DIG_OBJECTIVE_MARKERS))
+        {
+            return 70;
+        }
+        if (containsAnyObjectiveMarker(lower, PARTIAL_OBJECTIVE_MARKERS))
+        {
+            return 50;
+        }
+        return 0;
+    }
+
+    static boolean isPickUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        String compactLower = compact(lower);
+        return compactLower.equals("pick")
+                || compactLower.equals("pickaxe")
+                || compactLower.contains("pickuses")
+                || compactLower.contains("pickaxeuses")
+                || (compactLower.contains("pick") && compactLower.contains("use"));
+    }
+
+    static boolean isAxeUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        String compactLower = compact(lower);
+        return isPickUsesObjective(lower) == false
+                && (compactLower.equals("axe")
+                || compactLower.contains("axeuses")
+                || (compactLower.contains("axe") && compactLower.contains("use")));
+    }
+
+    static boolean isShovelUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        String compactLower = compact(lower);
+        return compactLower.equals("shovel")
+                || compactLower.contains("shoveluses")
+                || (compactLower.contains("shovel") && compactLower.contains("use"));
+    }
+
+    static boolean isToolUsesObjective(String value)
+    {
+        return toolKind(value) != ToolKind.NONE;
+    }
+
+    private static String preferredObjectiveTitle(String objectiveName, String displayTitle)
+    {
+        if (objectivePriority(displayTitle) > 0)
+        {
+            return displayTitle;
+        }
+        if (objectivePriority(objectiveName) > 0)
+        {
+            return objectiveName;
+        }
+        return displayTitle.isBlank() ? objectiveName : displayTitle;
+    }
+
+    private static String objectiveContext(String objectiveName, String displayTitle)
+    {
+        return normalizedObjectiveText(objectiveName + " " + displayTitle);
+    }
+
+    private static boolean containsAnyObjectiveMarker(String lower, List<String> markers)
+    {
+        String compactLower = compact(lower);
+        return markers.stream().anyMatch(marker -> {
+            String normalized = normalizedObjectiveText(marker);
+            return lower.contains(normalized) || compactLower.contains(compact(normalized));
+        });
+    }
+
+    private static boolean containsTotalObjectiveMarker(String lower)
+    {
+        String normalized = normalizedObjectiveText(lower);
+        String compactLower = compact(normalized);
+        if (compactLower.equals("sum") || compactLower.equals("total"))
+        {
+            return true;
+        }
+        if (containsAnyObjectiveMarker(normalized, List.of("combinedblocks", "combined blocks", "blocks mined", "mined blocks")))
+        {
+            return true;
+        }
+        return (compactLower.contains("sum") || compactLower.contains("total"))
+                && (compactLower.contains("block") || compactLower.contains("mine") || compactLower.contains("dig") || compactLower.contains("dug"));
+    }
+
+    private static String normalizedObjectiveText(String value)
+    {
+        return clean(value)
+                .toLowerCase(Locale.ROOT)
+                .replace('_', ' ')
+                .replace('-', ' ');
+    }
+
+    private static String compact(String value)
+    {
+        return value == null ? "" : value.replaceAll("[^a-z0-9]", "");
+    }
+
+    private static ToolKind toolKind(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        if (isPickUsesObjective(lower))
+        {
+            return ToolKind.PICKAXE;
+        }
+        if (isShovelUsesObjective(lower))
+        {
+            return ToolKind.SHOVEL;
+        }
+        if (isAxeUsesObjective(lower))
+        {
+            return ToolKind.AXE;
+        }
+        return ToolKind.NONE;
+    }
+
+    private static String combinedToolUsageTitle(Set<ToolKind> detectedKinds)
+    {
+        List<String> labels = new ArrayList<>();
+        if (detectedKinds.contains(ToolKind.PICKAXE))
+        {
+            labels.add("Pickaxe Uses");
+        }
+        if (detectedKinds.contains(ToolKind.AXE))
+        {
+            labels.add("Axe Uses");
+        }
+        if (detectedKinds.contains(ToolKind.SHOVEL))
+        {
+            labels.add("Shovel Uses");
+        }
+        if (labels.isEmpty())
+        {
+            return "Combined Tool Uses";
+        }
+        return "Combined Tool Uses: " + String.join(" + ", labels);
     }
 
     private static long extractValueNear(List<ScoreboardLine> lines, int index)
@@ -354,7 +676,7 @@ final class ScoreboardParser
         }
         catch (NumberFormatException e)
         {
-            MmmDebugLogger.debug(
+            MmmDebugLogger.info(
                     "scoreboard-rank-parse",
                     PARSE_DEBUG_LOG_INTERVAL_MS,
                     "[MMM_SYNC] failed to parse scoreboard rank from '{}': {}",
@@ -435,7 +757,7 @@ final class ScoreboardParser
             }
             catch (NumberFormatException e)
             {
-                MmmDebugLogger.debug(
+                MmmDebugLogger.info(
                         "scoreboard-number-parse",
                         PARSE_DEBUG_LOG_INTERVAL_MS,
                         "[MMM_SYNC] failed to parse scoreboard number from '{}': {}",
@@ -447,7 +769,7 @@ final class ScoreboardParser
         return best;
     }
 
-    record Candidate(AeternumLeaderboardSnapshot snapshot, int confidence, List<ScoreboardLine> lines)
+    record Candidate(SourceLeaderboardSnapshot snapshot, int confidence, int objectivePriority, List<ScoreboardLine> lines)
     {
         String describeLines()
         {
@@ -457,6 +779,53 @@ final class ScoreboardParser
                 preview.add(line.cleaned() + " [owner=" + line.owner() + ", score=" + line.scoreValue() + ", user=" + line.usernameCandidate() + "]");
             }
             return String.join(" | ", preview);
+        }
+    }
+
+    record ObjectiveRows(ScoreboardObjective objective, Collection<ScoreboardEntry> entries)
+    {
+    }
+
+    private enum ToolKind
+    {
+        NONE,
+        PICKAXE,
+        AXE,
+        SHOVEL
+    }
+
+    private static final class ToolUsageEntry
+    {
+        private final String username;
+        private final EnumMap<ToolKind, Long> totals = new EnumMap<>(ToolKind.class);
+
+        private ToolUsageEntry(String username)
+        {
+            this.username = username;
+        }
+
+        private String username()
+        {
+            return this.username;
+        }
+
+        private void putMax(ToolKind kind, long value)
+        {
+            if (kind == null || kind == ToolKind.NONE || value <= 0L)
+            {
+                return;
+            }
+            this.totals.merge(kind, value, Math::max);
+        }
+
+        private long total()
+        {
+            long total = 0L;
+            for (Long value : this.totals.values())
+            {
+                total += Math.max(0L, value);
+            }
+            return total;
         }
     }
 

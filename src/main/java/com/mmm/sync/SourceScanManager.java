@@ -39,6 +39,10 @@ public final class SourceScanManager
         );
 
         ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        List<ScoreboardParser.ObjectiveRows> objectiveRows = scoreboard.getObjectives().stream()
+                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, scoreboard.getScoreboardEntries(objective)))
+                .toList();
+
         ScoreboardParser.Candidate sidebarCandidate = ScoreboardParser.parse(
                 username,
                 sourceDisplayName,
@@ -47,23 +51,44 @@ public final class SourceScanManager
         );
 
         ScoreboardParser.Candidate chosen = null;
+        List<ScoreboardParser.Candidate> candidates = objectiveRows.stream()
+                .map(rows -> ScoreboardParser.parse(username, sourceDisplayName, rows.objective(), rows.entries()))
+                .filter(candidate -> candidate != null && candidate.snapshot().isValid())
+                .toList();
 
-        if (sidebarCandidate != null && sidebarCandidate.snapshot().isValid())
+        if (sidebarCandidate != null && sidebarCandidate.snapshot().isValid() && sidebarCandidate.objectivePriority() >= 70)
         {
             chosen = sidebarCandidate;
         }
         else
         {
-            Optional<ScoreboardParser.Candidate> bestCandidate = scoreboard.getObjectives().stream()
-                    .map(objective -> ScoreboardParser.parse(
-                            username,
-                            sourceDisplayName,
-                            objective,
-                            scoreboard.getScoreboardEntries(objective)))
-                    .filter(candidate -> candidate != null && candidate.snapshot().isValid())
-                    .max(Comparator.comparingInt(ScoreboardParser.Candidate::confidence));
+            Optional<ScoreboardParser.Candidate> bestTotalCandidate = candidates.stream()
+                    .filter(candidate -> candidate.objectivePriority() >= 70)
+                    .max(Comparator
+                            .comparingInt(ScoreboardParser.Candidate::objectivePriority)
+                            .thenComparingInt(ScoreboardParser.Candidate::confidence));
 
-            chosen = bestCandidate.orElse(null);
+            chosen = bestTotalCandidate.orElse(null);
+        }
+
+        if (chosen == null)
+        {
+            ScoreboardParser.Candidate combinedToolUsage = ScoreboardParser.parseCombinedToolUsage(
+                    username,
+                    sourceDisplayName,
+                    objectiveRows
+            );
+            if (combinedToolUsage != null && combinedToolUsage.snapshot().isValid())
+            {
+                chosen = combinedToolUsage;
+            }
+        }
+
+        if (chosen == null)
+        {
+            chosen = candidates.stream()
+                    .max(Comparator.comparingInt(ScoreboardParser.Candidate::confidence))
+                    .orElse(null);
         }
 
         PlayerDigsModel playerDigs = PlayerDigsParser.parse(client);
@@ -167,7 +192,7 @@ public final class SourceScanManager
         return candidate.snapshot().entries().stream()
                 .filter(entry -> entry.username().equalsIgnoreCase(username))
                 .findFirst()
-                .map(AeternumLeaderboardEntry::digs)
+                .map(SourceLeaderboardEntry::digs)
                 .orElse(0L);
     }
 
@@ -240,7 +265,7 @@ public final class SourceScanManager
         if (candidate != null && candidate.snapshot() != null)
         {
             candidate.snapshot().entries().stream()
-                    .sorted(Comparator.comparingInt(AeternumLeaderboardEntry::rank))
+                    .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                     .forEach(entry -> builder.append('|')
                             .append(entry.username().toLowerCase(Locale.ROOT))
                             .append(':')

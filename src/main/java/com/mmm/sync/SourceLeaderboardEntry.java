@@ -1,6 +1,6 @@
 package com.mmm.sync;
 
-public record AeternumLeaderboardEntry(
+public record SourceLeaderboardEntry(
         String username,
         long digs,
         int rank
@@ -14,7 +14,7 @@ public record AeternumLeaderboardEntry(
                 && this.rank > 0;
     }
 
-    public boolean sameValues(AeternumLeaderboardEntry other)
+    public boolean sameValues(SourceLeaderboardEntry other)
     {
         return other != null
                 && this.username.equalsIgnoreCase(other.username)

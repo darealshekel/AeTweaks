@@ -442,7 +442,7 @@ public final class MiningStats
         return Math.max(0L, currentSession.totalBlocks);
     }
 
-    public static void applyAeternumTotalMined(long totalDigs, long now)
+    public static void applyScoreboardTotalMined(long totalDigs, long now)
     {
         if (totalDigs < 0L)
         {
