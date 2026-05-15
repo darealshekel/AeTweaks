@@ -11,6 +11,7 @@ import com.mmm.MMM;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.storage.SessionData;
+import com.mmm.storage.SessionHistory;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tracker.MiningValidationTracker;
@@ -32,13 +33,16 @@ public final class CloudSyncManager
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final long SOURCE_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
+    private static final long SAVED_SESSION_BACKLOG_SCAN_INTERVAL_MS = 30_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
+    private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
     private static long lastSourceScoreboardScanMs;
+    private static long lastSavedSessionBacklogScanMs;
     private static volatile SyncStatus syncStatus = SyncStatus.CONNECTED;
     private static volatile String syncStatusDetail = "";
     private static volatile long lastHealthySignalMs;
@@ -67,6 +71,7 @@ public final class CloudSyncManager
         {
             syncHeartbeat();
         }
+        queueSavedSessionsIfDue(now);
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (now - lastSourceScoreboardScanMs >= SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
@@ -106,6 +111,7 @@ public final class CloudSyncManager
 
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
+        queueSavedSessionsForSync("heartbeat");
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
@@ -120,6 +126,7 @@ public final class CloudSyncManager
         long now = System.currentTimeMillis();
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
+        queueSavedSessionsForSync(reason == null || reason.isBlank() ? "manual sync" : reason);
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
         SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "manual sync" : reason);
@@ -132,8 +139,9 @@ public final class CloudSyncManager
             return;
         }
 
+        String sessionKey = sessionKey(session);
         JsonObject payload = buildPayload(session, "ended");
-        SyncQueueManager.enqueueCloudFinishedSession("sess_" + session.startTimeMs, payload);
+        SyncQueueManager.enqueueCloudFinishedSession(sessionKey, payload);
     }
 
     public static void onBlockMined(long now)
@@ -210,6 +218,7 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
+        markSyncedSessions(payload);
         applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
@@ -591,6 +600,60 @@ public final class CloudSyncManager
         return MiningStats.isSessionPaused() ? "paused" : "active";
     }
 
+    private static void queueSavedSessionsIfDue(long now)
+    {
+        if (now - lastSavedSessionBacklogScanMs < SAVED_SESSION_BACKLOG_SCAN_INTERVAL_MS)
+        {
+            return;
+        }
+
+        lastSavedSessionBacklogScanMs = now;
+        queueSavedSessionsForSync("saved session backlog");
+    }
+
+    private static void queueSavedSessionsForSync(String reason)
+    {
+        if (canSync() == false || hasLiveContext() == false)
+        {
+            return;
+        }
+
+        int queued = 0;
+        for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
+        {
+            for (SessionData session : history.sessions())
+            {
+                String sessionKey = sessionKey(session);
+                if (SessionSyncState.isSynced(sessionKey))
+                {
+                    continue;
+                }
+
+                SyncQueueManager.enqueueCloudFinishedSession(
+                        sessionKey,
+                        buildSavedSessionPayload(history, session));
+                queued++;
+                if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
+                {
+                    break;
+                }
+            }
+
+            if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
+            {
+                break;
+            }
+        }
+
+        if (queued > 0)
+        {
+            MMM.LOGGER.info("{} saved-session-backlog-queued count={} reason={}",
+                    LOG_PREFIX,
+                    queued,
+                    reason == null || reason.isBlank() ? "sync" : reason);
+        }
+    }
+
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -646,6 +709,29 @@ public final class CloudSyncManager
 
         debugPayloadSource(worldInfo, payload);
 
+        return payload;
+    }
+
+    private static JsonObject buildSavedSessionPayload(SessionHistory.WorldHistory history, SessionData session)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("client_id", Configs.cloudClientId);
+        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
+        payload.addProperty("username", resolveUsername(client));
+        payload.addProperty("mod_version", Reference.MOD_VERSION);
+        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.add("world", buildWorld(history.worldId(), history.displayName()));
+        payload.add("lifetime_totals", buildLifetimeTotals());
+        payload.add("mining_records", buildMiningRecords());
+        payload.add("projects", buildProjects());
+        payload.add("daily_goal", buildDailyGoal(dailyGoal));
+        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
+        payload.add("session_state", buildSessionState());
+        payload.add("session", buildSession(session, "ended"));
         return payload;
     }
 
@@ -847,6 +933,44 @@ public final class CloudSyncManager
         return world;
     }
 
+    private static JsonObject buildWorld(String worldId, String displayName)
+    {
+        Configs.WorldStatsEntry worldStats = findWorldStats(worldId);
+        String resolvedWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        String resolvedDisplayName = displayName != null && displayName.isBlank() == false
+                ? displayName
+                : worldStats != null && worldStats.displayName != null && worldStats.displayName.isBlank() == false
+                ? worldStats.displayName
+                : resolvedWorldId;
+
+        JsonObject world = new JsonObject();
+        world.addProperty("key", resolvedWorldId);
+        world.addProperty("display_name", resolvedDisplayName);
+        world.addProperty("kind", normaliseWorldKind(worldStats == null ? "unknown" : worldStats.kind));
+        world.addProperty("host", (String) null);
+        world.addProperty("source_key", resolvedWorldId);
+        world.addProperty("source_name", resolvedDisplayName);
+        return world;
+    }
+
+    private static Configs.WorldStatsEntry findWorldStats(String worldId)
+    {
+        if (worldId == null || worldId.isBlank())
+        {
+            return null;
+        }
+
+        for (Configs.WorldStatsEntry entry : Configs.WORLD_STATS)
+        {
+            if (worldId.equals(entry.worldId))
+            {
+                return entry;
+            }
+        }
+
+        return null;
+    }
+
     private static JsonArray buildProjects()
     {
         JsonArray projects = new JsonArray();
@@ -898,7 +1022,7 @@ public final class CloudSyncManager
     private static JsonObject buildSession(SessionData session, String status)
     {
         JsonObject sessionObject = new JsonObject();
-        sessionObject.addProperty("session_key", "sess_" + session.startTimeMs);
+        sessionObject.addProperty("session_key", sessionKey(session));
         sessionObject.addProperty("started_at", toIso(session.startTimeMs));
         sessionObject.addProperty("ended_at", "ended".equals(status) ? toIso(session.endTimeMs) : null);
         sessionObject.addProperty("active_seconds", session.getDurationMs() / 1000L);
@@ -912,6 +1036,32 @@ public final class CloudSyncManager
         sessionObject.add("block_breakdown", buildBreakdown(sanitizedBreakdown));
         sessionObject.add("rate_points", buildRatePoints(session.miningRateBuckets));
         return sessionObject;
+    }
+
+    private static String sessionKey(SessionData session)
+    {
+        return "sess_" + session.startTimeMs;
+    }
+
+    private static void markSyncedSessions(JsonObject payload)
+    {
+        if (payload == null || payload.has("session") == false || payload.get("session").isJsonObject() == false)
+        {
+            return;
+        }
+
+        JsonObject session = payload.getAsJsonObject("session");
+        if (session.has("status") == false
+                || session.get("status").isJsonPrimitive() == false
+                || "ended".equals(session.get("status").getAsString()) == false)
+        {
+            return;
+        }
+
+        if (session.has("session_key") && session.get("session_key").isJsonPrimitive())
+        {
+            SessionSyncState.markSynced(session.get("session_key").getAsString());
+        }
     }
 
     private static JsonArray buildBreakdown(Map<String, Long> breakdown)
