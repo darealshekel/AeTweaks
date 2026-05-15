@@ -5,24 +5,23 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import fi.dy.masa.malilib.util.FileUtils;
+import com.mmm.config.Configs;
 
 public final class SessionHistory
 {
     private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
     private static final long MIN_SESSION_BLOCKS = 1_000L;
     private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
-    private static final Path INSTANCE_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions");
-    private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.LEGACY_STORAGE_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static String currentWorldId = "default";
@@ -34,37 +33,15 @@ public final class SessionHistory
 
     public static void loadForWorld(String worldId)
     {
-        currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        currentWorldId = normalizeWorldId(worldId);
         migrateLegacySessionsIfNeeded();
         HISTORY.clear();
         best = null;
 
-        Path saveFile = getSaveFile();
-        if (Files.exists(saveFile) == false)
+        for (SessionData session : loadSessions(getSaveFile()))
         {
-            return;
-        }
-
-        try (BufferedReader reader = Files.newBufferedReader(saveFile))
-        {
-            String line;
-            while ((line = reader.readLine()) != null)
-            {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#"))
-                {
-                    continue;
-                }
-                SessionData session = SessionData.deserialise(line);
-                if (session != null)
-                {
-                    HISTORY.add(session);
-                    updateBest(session);
-                }
-            }
-        }
-        catch (IOException ignored)
-        {
+            HISTORY.add(session);
+            updateBest(session);
         }
     }
 
@@ -131,9 +108,58 @@ public final class SessionHistory
         return HISTORY;
     }
 
+    public static List<WorldHistory> getWorldHistories()
+    {
+        migrateLegacySessionsIfNeeded();
+        List<String> worldIds = new ArrayList<>();
+        if (Files.isDirectory(ROOT_DIR))
+        {
+            try (var paths = Files.list(ROOT_DIR))
+            {
+                paths.filter(Files::isDirectory)
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                        .forEach(path ->
+                        {
+                            String worldId = path.getFileName() == null ? "" : path.getFileName().toString();
+                            if (!worldId.isBlank() && Files.exists(path.resolve("sessions.csv")))
+                            {
+                                worldIds.add(worldId);
+                            }
+                        });
+            }
+            catch (IOException ignored)
+            {
+            }
+        }
+
+        if (!worldIds.contains(currentWorldId))
+        {
+            worldIds.add(0, currentWorldId);
+        }
+
+        List<WorldHistory> histories = new ArrayList<>();
+        for (String worldId : worldIds)
+        {
+            List<SessionData> sessions = loadSessions(getSaveFile(worldId));
+            if (sessions.isEmpty() && !worldId.equals(currentWorldId))
+            {
+                continue;
+            }
+
+            histories.add(new WorldHistory(worldId, resolveDisplayName(worldId), List.copyOf(sessions), findBest(sessions)));
+        }
+
+        return histories;
+    }
+
     public static SessionData getBestSession()
     {
         return best;
+    }
+
+    public static String getCurrentWorldId()
+    {
+        return currentWorldId;
     }
 
     private static void updateBest(SessionData session)
@@ -144,14 +170,95 @@ public final class SessionHistory
         }
     }
 
+    private static SessionData findBest(List<SessionData> sessions)
+    {
+        SessionData bestSession = null;
+        for (SessionData session : sessions)
+        {
+            if (bestSession == null || session.getAverageBlocksPerHour() > bestSession.getAverageBlocksPerHour())
+            {
+                bestSession = session;
+            }
+        }
+        return bestSession;
+    }
+
+    private static List<SessionData> loadSessions(Path saveFile)
+    {
+        List<SessionData> sessions = new ArrayList<>();
+        if (Files.exists(saveFile) == false)
+        {
+            return sessions;
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(saveFile))
+        {
+            String line;
+            while ((line = reader.readLine()) != null)
+            {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#"))
+                {
+                    continue;
+                }
+                SessionData session = SessionData.deserialise(line);
+                if (session != null)
+                {
+                    sessions.add(session);
+                }
+            }
+        }
+        catch (IOException ignored)
+        {
+        }
+        return sessions;
+    }
+
+    private static String resolveDisplayName(String worldId)
+    {
+        for (Configs.WorldStatsEntry entry : Configs.WORLD_STATS)
+        {
+            if (worldId.equals(entry.worldId) && entry.displayName != null && !entry.displayName.isBlank())
+            {
+                return entry.displayName;
+            }
+        }
+
+        if (worldId.equals(currentWorldId))
+        {
+            String currentName = WorldSessionContext.getCurrentWorldName();
+            if (currentName != null && !currentName.isBlank() && !"Unknown".equalsIgnoreCase(currentName))
+            {
+                return currentName;
+            }
+        }
+
+        return worldId;
+    }
+
+    private static String normalizeWorldId(String worldId)
+    {
+        return worldId == null || worldId.isBlank() ? "default" : worldId;
+    }
+
     private static Path getSaveFile()
     {
-        return getWorldDir().resolve("sessions.csv");
+        return getSaveFile(currentWorldId);
+    }
+
+    private static Path getSaveFile(String worldId)
+    {
+        return getWorldDir(worldId).resolve("sessions.csv");
     }
 
     private static Path getWorldDir()
     {
-        return ROOT_DIR.resolve(currentWorldId);
+        return getWorldDir(currentWorldId);
+    }
+
+    private static Path getWorldDir(String worldId)
+    {
+        return ROOT_DIR.resolve(normalizeWorldId(worldId));
     }
 
     private static void migrateLegacySessionsIfNeeded()
@@ -162,8 +269,21 @@ public final class SessionHistory
         }
         legacyMigrationAttempted = true;
 
-        mergeLegacyRoot(INSTANCE_ROOT_DIR);
-        mergeLegacyRoot(LEGACY_ROOT_DIR);
+        for (Path legacyRoot : findLegacySessionRoots())
+        {
+            mergeLegacyRoot(legacyRoot);
+        }
+    }
+
+    private static Set<Path> findLegacySessionRoots()
+    {
+        Set<Path> roots = new LinkedHashSet<>();
+        for (Path configDir : SharedStoragePaths.legacyConfigDirs())
+        {
+            roots.add(configDir.resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
+            roots.add(configDir.resolve(com.mmm.Reference.LEGACY_STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
+        }
+        return roots;
     }
 
     private static void mergeLegacyRoot(Path legacyRoot)
@@ -221,4 +341,6 @@ public final class SessionHistory
         {
         }
     }
+
+    public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
 }

@@ -1,11 +1,14 @@
 package com.mmm.config;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
@@ -302,9 +305,10 @@ public class Configs implements IConfigHandler
             }
         }
 
+        boolean importedLegacySharedState = importLegacyCrossVersionStateCandidates();
         boolean sharedStateLoaded = readCrossVersionState();
         onConfigLoaded();
-        if (sharedStateLoaded == false)
+        if (sharedStateLoaded == false || importedLegacySharedState)
         {
             writeCrossVersionState();
         }
@@ -572,21 +576,169 @@ public class Configs implements IConfigHandler
 
             JsonObject root = element.getAsJsonObject();
             JsonObject state = root.has("State") && root.get("State").isJsonObject() ? root.getAsJsonObject("State") : root;
-            if (state.has("dailyGoal")) Generic.DAILY_GOAL.setIntegerValue((int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, state.get("dailyGoal").getAsLong())));
-            if (state.has("dailyProgress")) dailyProgress = state.get("dailyProgress").getAsLong();
-            if (state.has("dailyGoalLastResetMs")) dailyGoalLastResetMs = state.get("dailyGoalLastResetMs").getAsLong();
-            if (state.has("dailyBlocksMined")) dailyBlocksMined = state.get("dailyBlocksMined").getAsLong();
-            if (state.has("dailyBlocksDate")) dailyBlocksDate = state.get("dailyBlocksDate").getAsString();
-            if (state.has("weeklyBlocksMined")) weeklyBlocksMined = state.get("weeklyBlocksMined").getAsLong();
-            if (state.has("weeklyBlocksWeek")) weeklyBlocksWeek = state.get("weeklyBlocksWeek").getAsString();
-            if (state.has("personalRecordDailyBlocks")) personalRecordDailyBlocks = state.get("personalRecordDailyBlocks").getAsLong();
-            if (state.has("personalRecordWeeklyBlocks")) personalRecordWeeklyBlocks = state.get("personalRecordWeeklyBlocks").getAsLong();
+            mergeCrossVersionState(state);
             return true;
         }
         catch (Exception ignored)
         {
             return false;
         }
+    }
+
+    private static boolean importLegacyCrossVersionStateCandidates()
+    {
+        boolean imported = false;
+        Path currentConfigPath = getPrimaryConfigFile().toPath().toAbsolutePath().normalize();
+        Set<String> configFileNames = Set.of(Reference.STORAGE_ID + ".json", Reference.LEGACY_STORAGE_ID + ".json");
+
+        for (Path configDir : SharedStoragePaths.legacyConfigDirs())
+        {
+            for (String fileName : configFileNames)
+            {
+                Path candidate = configDir.resolve(fileName).toAbsolutePath().normalize();
+                if (candidate.equals(currentConfigPath) || Files.isRegularFile(candidate) == false)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    JsonElement element = JsonUtils.parseJsonFile(candidate.toFile());
+                    if (element == null || element.isJsonObject() == false)
+                    {
+                        continue;
+                    }
+
+                    JsonObject root = element.getAsJsonObject();
+                    JsonObject state = root.has("State") && root.get("State").isJsonObject() ? root.getAsJsonObject("State") : root;
+                    mergeCrossVersionState(state);
+                    imported = true;
+                }
+                catch (Exception ignored)
+                {
+                }
+            }
+        }
+
+        return imported;
+    }
+
+    private static void mergeCrossVersionState(JsonObject state)
+    {
+        long dailyGoal = readSharedLong(state, "dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
+        long mergedDailyGoal = Math.max(Generic.DAILY_GOAL.getIntegerValue(), dailyGoal);
+        Generic.DAILY_GOAL.setIntegerValue((int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, mergedDailyGoal)));
+
+        long incomingDailyProgress = readSharedLong(state, "dailyProgress", 0L);
+        long incomingDailyBlocks = readSharedLong(state, "dailyBlocksMined", 0L);
+        String incomingDailyDate = normalizeStateKey(readSharedString(state, "dailyBlocksDate", ""));
+        long incomingDailyResetMs = readSharedLong(state, "dailyGoalLastResetMs", 0L);
+        mergeDailyState(incomingDailyDate, Math.max(incomingDailyBlocks, incomingDailyProgress), incomingDailyResetMs);
+
+        long incomingWeeklyBlocks = readSharedLong(state, "weeklyBlocksMined", 0L);
+        String incomingWeeklyWeek = normalizeStateKey(readSharedString(state, "weeklyBlocksWeek", ""));
+        mergeWeeklyState(incomingWeeklyWeek, incomingWeeklyBlocks);
+
+        personalRecordDailyBlocks = Math.max(personalRecordDailyBlocks, readSharedLong(state, "personalRecordDailyBlocks", 0L));
+        personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, readSharedLong(state, "personalRecordWeeklyBlocks", 0L));
+        personalRecordDailyBlocks = Math.max(personalRecordDailyBlocks, dailyBlocksMined);
+        personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, weeklyBlocksMined);
+    }
+
+    private static void mergeDailyState(String incomingDate, long incomingBlocks, long incomingResetMs)
+    {
+        dailyBlocksDate = normalizeStateKey(dailyBlocksDate);
+        long currentBlocks = Math.max(dailyBlocksMined, dailyProgress);
+        if (incomingDate.isBlank())
+        {
+            if (dailyBlocksDate.isBlank())
+            {
+                long mergedBlocks = Math.max(currentBlocks, incomingBlocks);
+                dailyBlocksMined = mergedBlocks;
+                dailyProgress = mergedBlocks;
+                dailyGoalLastResetMs = Math.max(dailyGoalLastResetMs, incomingResetMs);
+            }
+            return;
+        }
+
+        int comparison = dailyBlocksDate.isBlank() ? 1 : incomingDate.compareTo(dailyBlocksDate);
+        if (comparison > 0)
+        {
+            dailyBlocksDate = incomingDate;
+            dailyBlocksMined = Math.max(0L, incomingBlocks);
+            dailyProgress = dailyBlocksMined;
+            dailyGoalLastResetMs = Math.max(0L, incomingResetMs);
+        }
+        else if (comparison == 0)
+        {
+            long mergedBlocks = Math.max(currentBlocks, incomingBlocks);
+            dailyBlocksMined = mergedBlocks;
+            dailyProgress = mergedBlocks;
+            dailyGoalLastResetMs = Math.max(dailyGoalLastResetMs, incomingResetMs);
+        }
+    }
+
+    private static void mergeWeeklyState(String incomingWeek, long incomingBlocks)
+    {
+        weeklyBlocksWeek = normalizeStateKey(weeklyBlocksWeek);
+        if (incomingWeek.isBlank())
+        {
+            if (weeklyBlocksWeek.isBlank())
+            {
+                weeklyBlocksMined = Math.max(weeklyBlocksMined, incomingBlocks);
+            }
+            return;
+        }
+
+        int comparison = weeklyBlocksWeek.isBlank() ? 1 : incomingWeek.compareTo(weeklyBlocksWeek);
+        if (comparison > 0)
+        {
+            weeklyBlocksWeek = incomingWeek;
+            weeklyBlocksMined = Math.max(0L, incomingBlocks);
+        }
+        else if (comparison == 0)
+        {
+            weeklyBlocksMined = Math.max(weeklyBlocksMined, incomingBlocks);
+        }
+    }
+
+    private static long readSharedLong(JsonObject object, String field, long fallback)
+    {
+        if (object == null || object.has(field) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return object.get(field).getAsLong();
+        }
+        catch (Exception ignored)
+        {
+            return fallback;
+        }
+    }
+
+    private static String readSharedString(JsonObject object, String field, String fallback)
+    {
+        if (object == null || object.has(field) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return object.get(field).getAsString();
+        }
+        catch (Exception ignored)
+        {
+            return fallback;
+        }
+    }
+
+    private static String normalizeStateKey(String value)
+    {
+        return value == null ? "" : value.trim();
     }
 
     private static void writeCrossVersionState()
@@ -598,6 +750,7 @@ public class Configs implements IConfigHandler
             return;
         }
 
+        readCrossVersionState();
         JsonObject state = new JsonObject();
         state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
         state.addProperty("dailyProgress", dailyProgress);
