@@ -3,6 +3,8 @@ package com.mmm.sync;
 import com.mmm.MMM;
 import com.mmm.storage.SharedStoragePaths;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -12,6 +14,8 @@ import java.util.Set;
 final class SessionSyncState
 {
     private static final Path SYNCED_SESSIONS_FILE = SharedStoragePaths.root().resolve("synced-session-keys.txt");
+    private static final String VERSION_PREFIX = "#version=";
+    private static final String CURRENT_VERSION = "stored-session-ack-v1";
     private static final Set<String> SYNCED_SESSION_KEYS = new LinkedHashSet<>();
     private static boolean loaded;
 
@@ -56,13 +60,30 @@ final class SessionSyncState
 
         try
         {
+            String storedVersion = "";
             for (String line : Files.readAllLines(SYNCED_SESSIONS_FILE))
             {
+                if (line != null && line.startsWith(VERSION_PREFIX))
+                {
+                    storedVersion = line.substring(VERSION_PREFIX.length()).trim();
+                    continue;
+                }
+
                 String normalized = normalizeSessionKey(line);
                 if (normalized.isBlank() == false)
                 {
                     SYNCED_SESSION_KEYS.add(normalized);
                 }
+            }
+
+            if (CURRENT_VERSION.equals(storedVersion) == false)
+            {
+                if (SYNCED_SESSION_KEYS.isEmpty() == false)
+                {
+                    MMM.LOGGER.info("[MMM] Resyncing saved sessions once after sync acknowledgement update.");
+                }
+                SYNCED_SESSION_KEYS.clear();
+                persist();
             }
         }
         catch (IOException e)
@@ -76,9 +97,12 @@ final class SessionSyncState
         try
         {
             Files.createDirectories(SYNCED_SESSIONS_FILE.getParent());
+            List<String> lines = new ArrayList<>();
+            lines.add(VERSION_PREFIX + CURRENT_VERSION);
+            lines.addAll(SYNCED_SESSION_KEYS);
             Files.write(
                     SYNCED_SESSIONS_FILE,
-                    SYNCED_SESSION_KEYS,
+                    lines,
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
         }

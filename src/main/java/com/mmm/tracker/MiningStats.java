@@ -921,18 +921,17 @@ public final class MiningStats
 
         if (dailyPeriodIsStale)
         {
-            Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
-            Configs.dailyProgress = 0L;
-            Configs.dailyBlocksMined = 0L;
-            Configs.dailyBlocksDate = todayKey;
-            Configs.dailyGoalLastResetMs = now;
-            GoalNotificationManager.clear();
-            Configs.saveToFile();
+            resetDailyCountersForNewPeriod(now, todayKey);
             return;
         }
 
         if (Configs.dailyBlocksDate == null || Configs.dailyBlocksDate.isBlank())
         {
+            if (hasDailyProgress() && hasCurrentDailyResetMarker(now, zoneId) == false)
+            {
+                resetDailyCountersForNewPeriod(now, todayKey);
+                return;
+            }
             Configs.dailyBlocksDate = todayKey;
             Configs.saveToFile();
         }
@@ -955,12 +954,7 @@ public final class MiningStats
 
         if (lastResetDate.isBefore(today))
         {
-            Configs.dailyProgress = 0L;
-            Configs.dailyBlocksMined = 0L;
-            Configs.dailyBlocksDate = todayKey;
-            Configs.dailyGoalLastResetMs = now;
-            GoalNotificationManager.clear();
-            Configs.saveToFile();
+            resetDailyCountersForNewPeriod(now, todayKey);
         }
     }
 
@@ -974,6 +968,14 @@ public final class MiningStats
 
         if (Configs.dailyBlocksDate == null || Configs.dailyBlocksDate.isBlank())
         {
+            if (hasDailyProgress() && hasCurrentDailyResetMarker(now, zoneId) == false)
+            {
+                Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
+                Configs.dailyBlocksMined = 0L;
+                Configs.dailyProgress = 0L;
+                Configs.dailyGoalLastResetMs = now;
+                resetPeriod = true;
+            }
             Configs.dailyBlocksDate = todayKey;
             changed = true;
         }
@@ -1021,6 +1023,34 @@ public final class MiningStats
                 DigsSyncManager.syncNow("mining records period reset");
             }
         }
+    }
+
+    private static boolean hasDailyProgress()
+    {
+        return Math.max(Configs.dailyBlocksMined, Configs.dailyProgress) > 0L;
+    }
+
+    private static boolean hasCurrentDailyResetMarker(long now, ZoneId zoneId)
+    {
+        if (Configs.dailyGoalLastResetMs <= 0L)
+        {
+            return false;
+        }
+
+        LocalDate today = Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate();
+        LocalDate lastResetDate = Instant.ofEpochMilli(Configs.dailyGoalLastResetMs).atZone(zoneId).toLocalDate();
+        return lastResetDate.equals(today);
+    }
+
+    private static void resetDailyCountersForNewPeriod(long now, String todayKey)
+    {
+        Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
+        Configs.dailyProgress = 0L;
+        Configs.dailyBlocksMined = 0L;
+        Configs.dailyBlocksDate = todayKey;
+        Configs.dailyGoalLastResetMs = now;
+        GoalNotificationManager.clear();
+        Configs.saveToFile();
     }
 
     private static void recordPeriodBlocksMined(long amount, long now)

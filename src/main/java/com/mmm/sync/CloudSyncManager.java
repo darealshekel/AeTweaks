@@ -217,7 +217,7 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
-        markSyncedSessions(payload);
+        markSyncedSessions(payload, responseBody);
         applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
@@ -1042,7 +1042,7 @@ public final class CloudSyncManager
         return "sess_" + session.startTimeMs;
     }
 
-    private static void markSyncedSessions(JsonObject payload)
+    private static void markSyncedSessions(JsonObject payload, String responseBody)
     {
         if (payload == null || payload.has("session") == false || payload.get("session").isJsonObject() == false)
         {
@@ -1059,7 +1059,45 @@ public final class CloudSyncManager
 
         if (session.has("session_key") && session.get("session_key").isJsonPrimitive())
         {
-            SessionSyncState.markSynced(session.get("session_key").getAsString());
+            String sessionKey = session.get("session_key").getAsString();
+            if (serverStoredSession(responseBody, sessionKey))
+            {
+                SessionSyncState.markSynced(sessionKey);
+            }
+        }
+    }
+
+    private static boolean serverStoredSession(String responseBody, String sessionKey)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return true;
+        }
+
+        try
+        {
+            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            if (root.has("session") == false || root.get("session").isJsonObject() == false)
+            {
+                return true;
+            }
+
+            JsonObject syncSession = root.getAsJsonObject("session");
+            if (syncSession.has("session_key")
+                    && syncSession.get("session_key").isJsonPrimitive()
+                    && sessionKey != null
+                    && sessionKey.equals(syncSession.get("session_key").getAsString()) == false)
+            {
+                return false;
+            }
+
+            return syncSession.has("stored") == false
+                    || syncSession.get("stored").isJsonPrimitive() == false
+                    || syncSession.get("stored").getAsBoolean();
+        }
+        catch (Exception e)
+        {
+            return true;
         }
     }
 

@@ -67,14 +67,35 @@ public final class PeriodKeys
     public static boolean isCurrentDailyKey(String value, long now)
     {
         String raw = clean(value);
-        return raw.isBlank() == false && normalizeDailyKey(raw, now).equals(currentDailyKey(now));
+        if (raw.isBlank())
+        {
+            return false;
+        }
+
+        LocalDate parsed = parseDateKey(raw);
+        return parsed != null && format(parsed).equals(currentDailyKey(now));
     }
 
     public static boolean isCurrentWeeklyKey(String value, long now)
     {
         String raw = clean(value);
-        return raw.isBlank() == false
-                && (normalizeWeeklyKey(raw, now).equals(currentWeeklyKey(now)) || raw.equals(legacyIsoWeekKey(now)));
+        if (raw.isBlank())
+        {
+            return false;
+        }
+        if (raw.equals(legacyIsoWeekKey(now)))
+        {
+            return true;
+        }
+
+        LocalDate parsed = parseDateKey(raw);
+        if (parsed != null)
+        {
+            return weeklyKeyForDate(parsed).equals(currentWeeklyKey(now));
+        }
+
+        parsed = parseLegacyIsoWeek(raw);
+        return parsed != null && weeklyKeyForDate(parsed).equals(currentWeeklyKey(now));
     }
 
     public static String legacyIsoWeekKey(long now)
