@@ -730,6 +730,7 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
+        payload.add("validation", buildValidationTelemetry(client, new WorldSessionContext.WorldInfo(history.worldId(), history.displayName(), "unknown", ""), session));
         payload.add("session", buildSession(session, "ended"));
         return payload;
     }

@@ -188,6 +188,16 @@ final class SyncDeltaStore
             JsonObject section = payload.getAsJsonObject("aeternum_leaderboard");
             markAeternumLeaderboardSynced(section);
         }
+        if (payload.has("aeternum_leaderboards") && payload.get("aeternum_leaderboards").isJsonArray())
+        {
+            for (JsonElement element : payload.getAsJsonArray("aeternum_leaderboards"))
+            {
+                if (element != null && element.isJsonObject())
+                {
+                    markAeternumLeaderboardSynced(element.getAsJsonObject());
+                }
+            }
+        }
         save();
     }
 
@@ -330,7 +340,10 @@ final class SyncDeltaStore
 
     private static String aeternumLeaderboardKey(JsonObject payload)
     {
-        return "aeternum-leaderboard:" + stringValue(payload, "server_name").toLowerCase(java.util.Locale.ROOT);
+        return "aeternum-leaderboard:"
+                + stringValue(payload, "server_name").toLowerCase(java.util.Locale.ROOT)
+                + ":"
+                + stringValue(payload, "objective_title").toLowerCase(java.util.Locale.ROOT);
     }
 
     private static JsonObject withMode(JsonObject fullBreakdown, String mode)

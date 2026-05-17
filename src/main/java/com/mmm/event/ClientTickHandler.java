@@ -24,7 +24,7 @@ public class ClientTickHandler implements IClientTickHandler
         if (pending != null && mc.player == null && mc.world == null)
         {
             String worldName = WorldLoadListener.consumePendingSummaryName();
-            mc.setScreen(new SummaryScreen(pending, mc.currentScreen, worldName, "Session Summary"));
+            mc.setScreen(SummaryScreen.worldExit(pending, mc.currentScreen, worldName));
             return;
         }
     }

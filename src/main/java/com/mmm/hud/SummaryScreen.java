@@ -65,6 +65,7 @@ public class SummaryScreen extends CompatScreen
     private final Screen parent;
     private final String worldName;
     private final String heading;
+    private final boolean showChrome;
     private final List<BlockBreakdownEntry> allEntries = new ArrayList<>();
     private final List<BlockBreakdownEntry> filteredEntries = new ArrayList<>();
 
@@ -76,16 +77,27 @@ public class SummaryScreen extends CompatScreen
 
     public SummaryScreen(SessionData session, Screen parent)
     {
-        this(session, parent, resolveWorldName(), "Session Summary");
+        this(session, parent, resolveWorldName(), "Session Summary", true);
     }
 
     public SummaryScreen(SessionData session, Screen parent, String worldName, String heading)
+    {
+        this(session, parent, worldName, heading, true);
+    }
+
+    private SummaryScreen(SessionData session, Screen parent, String worldName, String heading, boolean showChrome)
     {
         super(Text.literal(heading));
         this.session = session;
         this.parent = parent;
         this.worldName = worldName;
         this.heading = heading;
+        this.showChrome = showChrome;
+    }
+
+    public static SummaryScreen worldExit(SessionData session, Screen parent, String worldName)
+    {
+        return new SummaryScreen(session, parent, worldName, "Session Summary", false);
     }
 
     @Override
@@ -129,7 +141,10 @@ public class SummaryScreen extends CompatScreen
         updateDynamicWidgetBounds(animatedLayout);
 
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SUMMARY");
+        if (this.showChrome)
+        {
+            MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SUMMARY");
+        }
         fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, animatedLayout);
@@ -152,7 +167,10 @@ public class SummaryScreen extends CompatScreen
         {
             context.drawText(this.textRenderer, Text.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
         }
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        if (this.showChrome)
+        {
+            MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        }
     }
 
     @Override
@@ -169,7 +187,7 @@ public class SummaryScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SUMMARY"))
+        if (this.showChrome && button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SUMMARY"))
         {
             return true;
         }
@@ -571,13 +589,14 @@ public class SummaryScreen extends CompatScreen
 
     private Layout computeLayout()
     {
-        int availableWidth = Math.max(340, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
-        int panelWidth = Math.min(760, Math.max(520, availableWidth));
-        int topY = MmmUi.TOP_BAR_HEIGHT + 10;
-        int availableHeight = Math.max(260, this.height - topY - 12);
+        int availableWidth = this.showChrome ? Math.max(340, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(340, this.width - PANEL_MARGIN * 2);
+        int minPanelWidth = this.showChrome ? 520 : Math.min(520, availableWidth);
+        int panelWidth = Math.min(760, Math.max(minPanelWidth, availableWidth));
+        int topY = this.showChrome ? MmmUi.TOP_BAR_HEIGHT + 10 : PANEL_MARGIN;
+        int availableHeight = Math.max(260, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
         int panelHeight = Math.min(540, Math.max(360, availableHeight));
         panelHeight = Math.min(panelHeight, availableHeight);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelX = this.showChrome ? MmmUi.centerContentX(this.width, panelWidth) : Math.max(PANEL_MARGIN, (this.width - panelWidth) / 2);
         int panelY = topY + Math.max(0, (availableHeight - panelHeight) / 2);
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;

@@ -5,6 +5,7 @@ import com.mmm.tweak.FlatDigger;
 import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.tracker.MiningValidationTracker;
 import com.mmm.tracker.MiningStats;
+import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -16,6 +17,7 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.world.GameMode;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -29,40 +31,69 @@ public class ClientPlayerInteractionManagerMixin
     private Block mmm$pendingBlock;
     @Unique
     private BlockState mmm$pendingState;
+    @Unique
+    private boolean mmm$pendingValidMiningBreak;
 
     @Inject(method = "breakBlock(Lnet/minecraft/util/math/BlockPos;)Z", at = @At("HEAD"))
     private void mmm$captureBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
     {
+        this.mmm$clearPendingMiningBreak();
         if (!FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue())
         {
-            this.mmm$pendingBlock = null;
-            this.mmm$pendingState = null;
             return;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.world != null)
+        if (client.world == null || client.player == null || client.interactionManager == null)
         {
-            BlockState state = client.world.getBlockState(pos);
-            this.mmm$pendingBlock = state.getBlock();
-            this.mmm$pendingState = state;
+            return;
         }
-        else
+
+        BlockState state = client.world.getBlockState(pos);
+        Block block = state.getBlock();
+        if (BlockBreakdownCatalog.isValid(block) == false)
         {
-            this.mmm$pendingBlock = null;
-            this.mmm$pendingState = null;
+            return;
         }
+
+        if (mmm$isSurvivalMiningMode(client) == false)
+        {
+            return;
+        }
+
+        this.mmm$pendingBlock = block;
+        this.mmm$pendingState = state;
+        this.mmm$pendingValidMiningBreak = true;
     }
 
     @Inject(method = "breakBlock(Lnet/minecraft/util/math/BlockPos;)Z", at = @At("RETURN"))
     private void mmm$recordBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
     {
-        if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() && Boolean.TRUE.equals(cir.getReturnValue()))
+        if (this.mmm$pendingValidMiningBreak && FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() && Boolean.TRUE.equals(cir.getReturnValue()))
         {
             MiningStats.recordBlockMined(this.mmm$pendingBlock, pos, this.mmm$pendingState);
         }
+        this.mmm$clearPendingMiningBreak();
+    }
+
+    @Unique
+    private void mmm$clearPendingMiningBreak()
+    {
         this.mmm$pendingBlock = null;
         this.mmm$pendingState = null;
+        this.mmm$pendingValidMiningBreak = false;
+    }
+
+    @Unique
+    private static boolean mmm$isSurvivalMiningMode(MinecraftClient client)
+    {
+        if (client == null || client.player == null || client.interactionManager == null)
+        {
+            return false;
+        }
+
+        GameMode gameMode = client.interactionManager.getCurrentGameMode();
+        return gameMode == GameMode.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
     }
 
     @Inject(method = "interactBlock", at = @At("RETURN"))
