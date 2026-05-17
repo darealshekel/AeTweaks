@@ -4,10 +4,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mmm.config.Configs;
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.util.AutomationModDetector;
+import com.mmm.util.AutomationModDetector.DetectedAutomationMod;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -167,7 +170,15 @@ public final class MiningValidationTracker
         JsonArray flags = new JsonArray();
         JsonObject details = new JsonObject();
         int score = 0;
+        List<DetectedAutomationMod> automationMods = AutomationModDetector.findLoadedAutomationMods();
+        boolean automationDetected = automationMods.isEmpty() == false;
 
+        if (automationDetected)
+        {
+            flags.add("AUTOMATION_DETECTED");
+            score = 100;
+            details.addProperty("AUTOMATION_DETECTED", "A known automation or hacked-client mod is loaded, so synced mining data requires owner review before public leaderboard use.");
+        }
         if (lowCamera)
         {
             flags.add("LOW_CAMERA_VARIANCE");
@@ -215,10 +226,26 @@ public final class MiningValidationTracker
         payload.addProperty("recentClusterSize", clusterStats.uniquePositions());
         payload.addProperty("placedThenBrokenCount", placedThenBrokenCount);
         payload.addProperty("suspicionScore", Math.min(100, score));
+        payload.addProperty("automationDetected", automationDetected);
+        payload.addProperty("trustState", automationDetected ? "automation_detected" : "normal");
+        payload.add("loadedAutomationMods", buildAutomationModsPayload(automationMods));
         payload.add("flags", flags);
         payload.add("flagDetails", details);
         payload.add("sessionStats", buildSessionStats(enoughBlocks, clusterStats));
         return payload;
+    }
+
+    private static JsonArray buildAutomationModsPayload(List<DetectedAutomationMod> automationMods)
+    {
+        JsonArray array = new JsonArray();
+        for (DetectedAutomationMod mod : automationMods)
+        {
+            JsonObject object = new JsonObject();
+            object.addProperty("id", mod.id());
+            object.addProperty("name", mod.name());
+            array.add(object);
+        }
+        return array;
     }
 
     private static JsonObject buildSessionStats(boolean checksApplied, ClusterStats clusterStats)
