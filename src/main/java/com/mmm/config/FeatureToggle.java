@@ -185,8 +185,13 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     @Override
     public void resetToDefault()
     {
+        boolean changed = this.value != this.defaultValue;
         this.value = this.defaultValue;
         this.markDirty();
+        if (changed)
+        {
+            this.onValueChanged();
+        }
     }
 
     @Override

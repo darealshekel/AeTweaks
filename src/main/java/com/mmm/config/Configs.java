@@ -529,6 +529,12 @@ public class Configs implements IConfigHandler
         saveToFile();
     }
 
+    @Override
+    public void onConfigsChanged()
+    {
+        saveToFile();
+    }
+
     private static void readCustomState(JsonObject root)
     {
         if (root.has("State") && root.get("State").isJsonObject())
