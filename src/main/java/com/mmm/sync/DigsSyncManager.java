@@ -1,6 +1,7 @@
 package com.mmm.sync;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
@@ -9,7 +10,10 @@ import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tracker.MiningValidationTracker;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 
 public final class DigsSyncManager
@@ -87,8 +91,19 @@ public final class DigsSyncManager
         }
 
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        String fingerprint = fingerprint(latestModel, BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo));
         boolean cadenceDue = lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs();
+        if (cadenceDue == false)
+        {
+            return;
+        }
+
+        JsonObject payload = buildPayload(latestModel);
+        String fingerprint = fingerprint(
+                latestModel,
+                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo),
+                sourcePayloadFingerprint(payload));
+        lastQueueAttemptMs = now;
+
         if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
         {
             return;
@@ -99,14 +114,8 @@ public final class DigsSyncManager
             return;
         }
 
-        if (cadenceDue == false)
-        {
-            return;
-        }
-
-        lastQueueAttemptMs = now;
         lastQueuedFingerprint = fingerprint;
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), buildPayload(latestModel));
+        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
     }
 
     static void onQueued(JsonObject payload)
@@ -120,7 +129,12 @@ public final class DigsSyncManager
         touchHealthy();
         CloudSyncManager.applySuccessfulSyncResponse(responseBody);
         SyncDeltaStore.markPayloadSynced(payload);
-        lastSuccessfulFingerprint = latestModel == null ? fingerprint(payload) : fingerprint(latestModel);
+        lastSuccessfulFingerprint = latestModel == null
+                ? fingerprint(payload)
+                : fingerprint(
+                    latestModel,
+                    BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
+                    sourcePayloadFingerprint(payload));
         lastQueuedFingerprint = lastSuccessfulFingerprint;
     }
 
@@ -135,9 +149,13 @@ public final class DigsSyncManager
             return;
         }
 
+        JsonObject payload = buildPayload(latestModel);
         lastQueueAttemptMs = now;
-        lastQueuedFingerprint = fingerprint(latestModel);
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), buildPayload(latestModel));
+        lastQueuedFingerprint = fingerprint(
+                latestModel,
+                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
+                sourcePayloadFingerprint(payload));
+        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
         SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "total digs sync" : reason);
     }
 
@@ -293,6 +311,18 @@ public final class DigsSyncManager
             }
         }
 
+        JsonObject sourceScan = buildSourceScan(client);
+        if (sourceScan != null)
+        {
+            payload.add("source_scan", sourceScan);
+        }
+
+        JsonArray sourceLeaderboards = buildSourceLeaderboards(client);
+        if (sourceLeaderboards != null && sourceLeaderboards.size() > 0)
+        {
+            payload.add("source_leaderboards", sourceLeaderboards);
+        }
+
         JsonObject digs = new JsonObject();
         digs.addProperty("username", model.username());
         digs.addProperty("total_digs", model.totalDigs());
@@ -313,6 +343,120 @@ public final class DigsSyncManager
                 sessionEndMs));
 
         return payload;
+    }
+
+    private static JsonObject buildSourceScan(MinecraftClient client)
+    {
+        SourceScanResult scan = SourceScanManager.scan(client);
+        if (scan == null || scan.hasMeaningfulEvidence() == false)
+        {
+            return null;
+        }
+
+        JsonObject object = new JsonObject();
+        object.addProperty("compatible", scan.compatible());
+        object.addProperty("confidence", scan.confidence());
+        object.addProperty("scoreboard_title", scan.scoreboardTitle());
+
+        if (scan.totalDigs() > 0L)
+        {
+            object.addProperty("total_digs", scan.totalDigs());
+        }
+
+        if (scan.playerTotalDigs() > 0L)
+        {
+            object.addProperty("player_total_digs", scan.playerTotalDigs());
+        }
+
+        object.addProperty("source_name", scan.sourceName());
+        object.addProperty("source_kind", scan.sourceKind());
+        object.addProperty("host", scan.host());
+        object.addProperty("scan_fingerprint", scan.scanFingerprint());
+        object.addProperty("icon_url", scan.iconUrl());
+
+        JsonArray fields = new JsonArray();
+        if (scan.detectedStatFields() != null)
+        {
+            scan.detectedStatFields().stream().limit(25).forEach(fields::add);
+        }
+        object.add("detected_stat_fields", fields);
+
+        return object;
+    }
+
+    private static JsonArray buildSourceLeaderboards(MinecraftClient client)
+    {
+        List<SourceLeaderboardSnapshot> snapshots = SourceLeaderboardReader.readAll(client);
+        if (snapshots.isEmpty())
+        {
+            return null;
+        }
+
+        JsonArray payloads = new JsonArray();
+        for (SourceLeaderboardSnapshot snapshot : snapshots)
+        {
+            JsonObject payload = buildSourceLeaderboard(client, snapshot);
+            if (payload != null)
+            {
+                payloads.add(payload);
+            }
+        }
+        return payloads;
+    }
+
+    private static JsonObject buildSourceLeaderboard(MinecraftClient client, SourceLeaderboardSnapshot snapshot)
+    {
+        if (snapshot == null || snapshot.isValid() == false)
+        {
+            return null;
+        }
+
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
+        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
+                .filter(SourceLeaderboardEntry::isValid)
+                .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
+                .toList();
+
+        if (realEntries.isEmpty())
+        {
+            return null;
+        }
+
+        JsonObject leaderboard = new JsonObject();
+        leaderboard.addProperty("server_name", snapshot.serverName());
+        leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
+        leaderboard.addProperty("captured_at", Instant.ofEpochMilli(snapshot.capturedAtMs()).toString());
+        leaderboard.addProperty("source_type", "scoreboard");
+
+        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
+        long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
+        long payloadTotalDigs = Math.max(snapshotTotalDigs, filteredTotalDigs);
+        if (payloadTotalDigs > 0L)
+        {
+            leaderboard.addProperty("total_digs", payloadTotalDigs);
+        }
+
+        JsonArray entries = new JsonArray();
+        for (SourceLeaderboardEntry entry : realEntries)
+        {
+            JsonObject row = new JsonObject();
+            row.addProperty("username", entry.username());
+            row.addProperty("digs", entry.digs());
+            row.addProperty("rank", entry.rank());
+            row.addProperty("source_server", snapshot.serverName());
+            entries.add(row);
+        }
+
+        if (fakeUsernames.isEmpty() == false)
+        {
+            JsonArray filtered = new JsonArray();
+            fakeUsernames.stream().sorted().forEach(filtered::add);
+            leaderboard.add("filtered_fake_usernames", filtered);
+        }
+
+        leaderboard.add("entries", entries);
+        return leaderboard;
     }
 
     private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo, long authoritativeTotal)
@@ -438,8 +582,14 @@ public final class DigsSyncManager
 
     private static String fingerprint(PlayerDigsModel model, String blockBreakdownFingerprint)
     {
+        return fingerprint(model, blockBreakdownFingerprint, "");
+    }
+
+    private static String fingerprint(PlayerDigsModel model, String blockBreakdownFingerprint, String sourceFingerprint)
+    {
         return dedupeKey(model) + "|" + currentWorldTotalFingerprint(WorldSessionContext.getCurrentWorldInfo()) + "|"
-                + (blockBreakdownFingerprint == null ? "" : blockBreakdownFingerprint);
+                + (blockBreakdownFingerprint == null ? "" : blockBreakdownFingerprint) + "|"
+                + (sourceFingerprint == null ? "" : sourceFingerprint);
     }
 
     private static String fingerprint(JsonObject payload)
@@ -462,7 +612,74 @@ public final class DigsSyncManager
                 ? BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown"))
                 : "";
         return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|"
-                + worldTotal + "|" + blockBreakdownFingerprint;
+                + worldTotal + "|" + blockBreakdownFingerprint + "|" + sourcePayloadFingerprint(payload);
+    }
+
+    private static String sourcePayloadFingerprint(JsonObject payload)
+    {
+        if (payload == null)
+        {
+            return "";
+        }
+
+        StringBuilder builder = new StringBuilder();
+        if (payload.has("source_scan") && payload.get("source_scan").isJsonObject())
+        {
+            JsonObject scan = payload.getAsJsonObject("source_scan");
+            builder.append("scan:");
+            appendPrimitive(builder, scan, "scoreboard_title");
+            appendPrimitive(builder, scan, "source_name");
+            appendPrimitive(builder, scan, "total_digs");
+            appendPrimitive(builder, scan, "player_total_digs");
+            appendPrimitive(builder, scan, "scan_fingerprint");
+        }
+
+        if (payload.has("source_leaderboards") && payload.get("source_leaderboards").isJsonArray())
+        {
+            JsonArray leaderboards = payload.getAsJsonArray("source_leaderboards");
+            builder.append("|leaderboards:");
+            for (int index = 0; index < leaderboards.size(); index++)
+            {
+                if (leaderboards.get(index).isJsonObject() == false)
+                {
+                    continue;
+                }
+
+                JsonObject leaderboard = leaderboards.get(index).getAsJsonObject();
+                appendPrimitive(builder, leaderboard, "server_name");
+                appendPrimitive(builder, leaderboard, "objective_title");
+                appendPrimitive(builder, leaderboard, "total_digs");
+                builder.append("[");
+                if (leaderboard.has("entries") && leaderboard.get("entries").isJsonArray())
+                {
+                    JsonArray entries = leaderboard.getAsJsonArray("entries");
+                    for (int entryIndex = 0; entryIndex < entries.size(); entryIndex++)
+                    {
+                        if (entries.get(entryIndex).isJsonObject() == false)
+                        {
+                            continue;
+                        }
+
+                        JsonObject entry = entries.get(entryIndex).getAsJsonObject();
+                        appendPrimitive(builder, entry, "username");
+                        appendPrimitive(builder, entry, "digs");
+                    }
+                }
+                builder.append("]");
+            }
+        }
+
+        return builder.toString();
+    }
+
+    private static void appendPrimitive(StringBuilder builder, JsonObject object, String key)
+    {
+        if (object == null || object.has(key) == false || object.get(key).isJsonPrimitive() == false)
+        {
+            return;
+        }
+
+        builder.append(key).append("=").append(object.get(key).getAsString()).append(";");
     }
 
     private static long currentWorldTotalFingerprint(WorldSessionContext.WorldInfo worldInfo)
