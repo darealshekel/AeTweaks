@@ -72,6 +72,7 @@ public final class MiningStats
     private static long metricTickIndex;
     private static long lastBpsUpdateTick;
     private static long lastBphUpdateTick;
+    private static long lastScoreboardSessionUpdateActiveElapsedMs;
     private static long sessionActiveTicks;
     private static int currentTickBpsBlocks;
     private static int currentTickBphBlocks;
@@ -255,6 +256,7 @@ public final class MiningStats
         autoMiningStreakStartMs = 0L;
         lastValidBlockMineMs = 0L;
         sessionAutoPaused = false;
+        lastScoreboardSessionUpdateActiveElapsedMs = 0L;
         sessionActiveTicks = 0L;
     }
 
@@ -461,6 +463,7 @@ public final class MiningStats
             {
                 sessionStartTotalMined = Math.max(0L, sessionStartTotalMined - correction);
                 currentSession.totalBlocks = Math.max(0L, currentSession.totalBlocks - correction);
+                lastScoreboardSessionUpdateActiveElapsedMs = Math.min(lastScoreboardSessionUpdateActiveElapsedMs, getActiveElapsedMs(now));
             }
             debugAttribution("authoritative-correction", previousSourceTotal, worldStats.totalBlocks, 0L);
             Configs.saveToFile();
@@ -481,11 +484,6 @@ public final class MiningStats
 
         if (sessionActive)
         {
-            if (sessionStartTotalMined <= 0L)
-            {
-                sessionStartTotalMined = previousSourceTotal;
-            }
-
             if (sessionPaused && delta > 0L)
             {
                 pausedSessionMinedOffset += delta;
@@ -496,10 +494,15 @@ public final class MiningStats
             currentSession.totalBlocks = sessionTotal;
             currentSession.endTimeMs = now;
 
-            if (sessionPaused == false && sessionDelta > 0L)
+            if (sessionPaused == false)
             {
-                currentSession.recordMinedAmount(getActiveElapsedMs(now), sessionDelta);
-                recordFastest100kIfReached(now);
+                long activeElapsedMs = getActiveElapsedMs(now);
+                if (sessionDelta > 0L)
+                {
+                    currentSession.recordMinedAmountOverInterval(lastScoreboardSessionUpdateActiveElapsedMs, activeElapsedMs, sessionDelta);
+                    recordFastest100kIfReached(now);
+                }
+                lastScoreboardSessionUpdateActiveElapsedMs = activeElapsedMs;
             }
         }
 

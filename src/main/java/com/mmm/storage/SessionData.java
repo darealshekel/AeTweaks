@@ -94,6 +94,45 @@ public class SessionData
         updatePeakBlocksPerHour(this.getBucketBlocksPerHour(bucketBlocks));
     }
 
+    public void recordMinedAmountOverInterval(long startActiveElapsedMs, long endActiveElapsedMs, long amount)
+    {
+        if (amount <= 0L)
+        {
+            return;
+        }
+
+        long startMs = Math.max(0L, startActiveElapsedMs);
+        long endMs = Math.max(startMs, endActiveElapsedMs);
+        if (endMs <= startMs)
+        {
+            recordMinedAmount(endMs, amount);
+            return;
+        }
+
+        long durationMs = endMs - startMs;
+        int startBucket = (int) Math.max(0L, startMs / RATE_BUCKET_DURATION_MS);
+        int endBucket = (int) Math.max(startBucket, (endMs - 1L) / RATE_BUCKET_DURATION_MS);
+        long allocated = 0L;
+        long coveredMs = 0L;
+
+        for (int bucket = startBucket; bucket <= endBucket; bucket++)
+        {
+            long bucketStartMs = (long) bucket * RATE_BUCKET_DURATION_MS;
+            long bucketEndMs = bucketStartMs + RATE_BUCKET_DURATION_MS;
+            long overlapMs = Math.max(0L, Math.min(endMs, bucketEndMs) - Math.max(startMs, bucketStartMs));
+            if (overlapMs <= 0L)
+            {
+                continue;
+            }
+
+            coveredMs += overlapMs;
+            long cumulative = bucket == endBucket ? amount : Math.round(amount * (coveredMs / (double) durationMs));
+            long bucketAmount = Math.max(0L, cumulative - allocated);
+            allocated += bucketAmount;
+            recordMinedAmount(bucketStartMs, bucketAmount);
+        }
+    }
+
     public String serialise()
     {
         return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
